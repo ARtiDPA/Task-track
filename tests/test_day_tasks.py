@@ -3,7 +3,7 @@ from test_server import ServerFixture
 
 class DayTaskTests(ServerFixture):
     def task(self,**changes):
-        return {**dict(id='task',title='Prepare',note='Bring a notebook',day='2027-01-15',time='10:30',priority='high',done=False),**changes}
+        return {**dict(id='task',title='Prepare',note='Bring a notebook',day='2027-01-15',time='10:30',priority='high',done=False,checklist=[]),**changes}
 
     def test_tasks_reschedule_complete_and_survive_restart(self):
         payload=self.task()
@@ -31,3 +31,18 @@ class DayTaskTests(ServerFixture):
         self.assertEqual(self.request()[1]['tasks'],[])
         self.assertEqual(self.request('/api/tasks/task','PATCH',self.task())[0],404)
         self.assertEqual(self.request('/api/tasks/task','DELETE',{})[0],404)
+
+    def test_checklists_sync_parent_status_validate_and_survive_restart(self):
+        payload=self.task(checklist=[dict(id='a',title='First',done=False),dict(id='b',title='Second',done=False)])
+        self.request('/api/tasks','POST',payload)
+        result=self.request('/api/tasks/task/items/a','PATCH',dict(done=True))[1]['tasks'][0]
+        self.assertTrue(result['checklist'][0]['done']);self.assertFalse(result['done'])
+        result=self.request('/api/tasks/task','PATCH',{**result,'done':True})[1]['tasks'][0]
+        self.assertTrue(all(i['done'] for i in result['checklist']))
+        result=self.request('/api/tasks/task/items/b','PATCH',dict(done=False))[1]['tasks'][0]
+        self.assertFalse(result['done']);self.assertFalse(result['checklist'][1]['done'])
+        self.stop_server();self.start_server()
+        self.assertEqual(self.request()[1]['tasks'][0]['checklist'],result['checklist'])
+        self.assertEqual(self.request('/api/tasks/task','PATCH',{**result,'checklist':[dict(id='x',title='',done=False)]})[0],400)
+        self.request('/api/auth/register','POST',dict(email='other@example.com',name='Other',password='other-password'))
+        self.assertEqual(self.request('/api/tasks/task/items/a','PATCH',dict(done=True))[0],404)

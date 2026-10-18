@@ -12,6 +12,23 @@ class DayTaskUITests(unittest.TestCase):
     tearDown=test_storage.StorageTests.tearDown
     register=test_storage.StorageTests.register
 
+    def test_checklist_edit_and_toggle_from_calendar(self):
+        self.register();self.page.goto(self.url);self.page.wait_for_function('ready')
+        self.page.locator('[data-view=tasks]').click();self.page.locator('#task-new').click()
+        self.page.locator('#task-title').fill('Подготовиться к поездке')
+        self.page.locator('#task-checklist-add').click();self.page.locator('[data-draft-title="0"]').fill('Купить билеты')
+        self.page.locator('#task-checklist-add').click();self.page.locator('[data-draft-title="1"]').fill('Собрать чемодан')
+        self.page.locator('#task-dialog [type=submit]').click();expect(self.page.locator('#task-dialog')).not_to_be_visible()
+        expect(self.page.locator('#task-list .task-checklist')).to_contain_text('0 из 2')
+        self.page.locator('#task-open-calendar').click();self.page.locator('#calendar-agenda [data-task-item]').first.click()
+        expect(self.page.locator('#calendar-agenda .task-checklist')).to_contain_text('1 из 2')
+        self.page.locator('#calendar-agenda [data-task-toggle]').click()
+        expect(self.page.locator('#calendar-agenda .task-checklist')).to_contain_text('2 из 2')
+        self.page.locator('#calendar-agenda [data-task-item]').last.click()
+        expect(self.page.locator('#calendar-agenda [data-task-toggle]')).to_have_attribute('aria-pressed','false')
+        self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=tasks]').click()
+        expect(self.page.locator('#task-list .task-checklist')).to_contain_text('1 из 2')
+
     def test_planner_and_calendar_share_one_task_and_undo_completion(self):
         self.register();self.page.goto(self.url);self.page.wait_for_function('ready')
         errors=[];self.page.on('pageerror',lambda e:errors.append(str(e)))
