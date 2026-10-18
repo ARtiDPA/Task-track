@@ -231,7 +231,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
             return
-        files = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/metrics.js': 'metrics.js', '/storage.js': 'storage.js', '/emoji-catalog.js': 'emoji-catalog.js', '/styles.css': 'styles.css', '/account.css': 'account.css', '/account.js': 'account.js', '/achievements.js': 'achievements.js', '/achievements.css': 'achievements.css', '/water.js': 'water.js', '/water.css': 'water.css'}
+        files = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/metrics.js': 'metrics.js', '/storage.js': 'storage.js', '/emoji-catalog.js': 'emoji-catalog.js', '/styles.css': 'styles.css', '/account.css': 'account.css', '/account.js': 'account.js', '/achievements.js': 'achievements.js', '/achievements.css': 'achievements.css', '/water.js': 'water.js', '/water.css': 'water.css', '/finance.js': 'finance.js', '/finance.css': 'finance.css', '/finance-math.js': 'finance-math.js'}
         if path not in files:
             self.send_json(404, {'error': 'Страница не найдена'})
             return
