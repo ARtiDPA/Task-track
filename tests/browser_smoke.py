@@ -104,7 +104,7 @@ def run_checks(url):
         for index in range(6):
             page.locator(".habit-row").nth(index).locator(".day-check.today").click()
         expect(page.locator("#today-percent")).to_have_text("100% от цели")
-        expect(page.locator(".achievement:not(.locked)")).to_have_count(2)
+        expect(page.locator(".achievement:not(.locked)")).to_have_count(3)
         assert page.locator(".confetti").count() > 0
         page.locator(".habit-row").first.locator(".day-check.today").click()
         expect(page.locator("#today-done")).to_have_text("5")
