@@ -70,6 +70,20 @@ class OrganizerTests(ServerFixture):
         result=self.request('/api/organizer/plans/rent/undo','POST',{})[1]
         self.assertEqual(result['finance']['balanceKopecks'],100000)
 
+    def test_partial_instalments_and_undo_keep_the_schedule_correct(self):
+        self.debt()
+        payment=dict(id='part',amountKopecks=2000,day=today(),nextDueDay='',recordTransaction=False)
+        debt=self.request('/api/organizer/debts/credit/payments','POST',payment)[1]['organizer']['debts'][0]
+        self.assertEqual(debt['paymentKopecks'],8000)
+        self.assertEqual(debt['dueDay'],'2027-01-10')
+        self.request('/api/organizer/debts/credit/payments/part','DELETE',{})
+        payment.update(id='complete-instalment',amountKopecks=10000)
+        debt=self.request('/api/organizer/debts/credit/payments','POST',payment)[1]['organizer']['debts'][0]
+        self.assertEqual(debt['dueDay'],'')
+        debt=self.request('/api/organizer/debts/credit/payments/complete-instalment','DELETE',{})[1]['organizer']['debts'][0]
+        self.assertEqual(debt['dueDay'],'2027-01-10')
+        self.assertEqual(debt['paymentKopecks'],10000)
+
     def test_calendar_dates_persist_and_all_resources_are_private(self):
         self.pot();self.debt();self.plan()
         event=dict(id='party',title='День рождения',day='2027-01-01',time='18:30',note='Подарок')

@@ -26,7 +26,7 @@ def initialize(db):
         );
         CREATE TABLE IF NOT EXISTS debt_payments (
             user_id TEXT NOT NULL,id TEXT NOT NULL,debt_id TEXT NOT NULL,amount INTEGER NOT NULL,
-            day TEXT NOT NULL,transaction_id TEXT,created_at TEXT NOT NULL,PRIMARY KEY(user_id,id),
+            day TEXT NOT NULL,transaction_id TEXT,created_at TEXT NOT NULL,previous_due TEXT NOT NULL DEFAULT '',previous_payment INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(user_id,id),
             FOREIGN KEY(user_id,debt_id) REFERENCES debts(user_id,id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS finance_plans (
@@ -41,6 +41,10 @@ def initialize(db):
             PRIMARY KEY(user_id,id)
         );
     ''')
+    if 'previous_due' not in [row['name'] for row in db.execute('PRAGMA table_info(debt_payments)')]:
+        db.execute("ALTER TABLE debt_payments ADD COLUMN previous_due TEXT NOT NULL DEFAULT ''")
+    if 'previous_payment' not in [row['name'] for row in db.execute('PRAGMA table_info(debt_payments)')]:
+        db.execute('ALTER TABLE debt_payments ADD COLUMN previous_payment INTEGER NOT NULL DEFAULT 0')
 
 
 def now():return datetime.now(timezone.utc).isoformat()
@@ -174,8 +178,19 @@ def pay_debt(db,user_id,entry_id,data,today):
     if data['recordTransaction']:
         txn=linked_id('debt',payment_id);kind='expense' if debt['direction']=='owe' else 'income'
         record(db,user_id,txn,kind,'other-expense' if kind=='expense' else 'other-income',amount,day,'Долг: '+debt['name'],'debt',entry_id,today)
-    db.execute('INSERT INTO debt_payments VALUES (?,?,?,?,?,?,?)',(user_id,payment_id,entry_id,amount,day,txn,now()))
-    if next_due:db.execute('UPDATE debts SET due_day=? WHERE user_id=? AND id=?',(next_due,user_id,entry_id))
+    db.execute('INSERT INTO debt_payments VALUES (?,?,?,?,?,?,?,?,?)',(user_id,payment_id,entry_id,amount,day,txn,now(),debt['due_day'],debt['payment_amount']))
+    remaining=debt['amount']-paid-amount
+    scheduled=debt['payment_amount']
+    if next_due:
+        next_amount=min(scheduled,remaining)
+    elif scheduled and amount<scheduled:
+        next_due=debt['due_day'];next_amount=min(scheduled-amount,remaining)
+    elif scheduled:
+        # The scheduled instalment has been fulfilled; don't invent a new due date.
+        next_due='';next_amount=min(scheduled,remaining)
+    else:
+        next_due=debt['due_day'] if remaining else '';next_amount=0
+    db.execute('UPDATE debts SET due_day=?,payment_amount=? WHERE user_id=? AND id=?',(next_due,next_amount,user_id,entry_id))
     return True
 
 
@@ -250,6 +265,9 @@ def dispatch(db,user_id,parts,method,data,today):
         if method=='DELETE' and action=='payments' and len(parts)==6:
             row=row_for(db,'debt_payments',user_id,parts[5])
             if not row or row['debt_id']!=entry_id:return False
+            latest=db.execute('SELECT id FROM debt_payments WHERE user_id=? AND debt_id=? ORDER BY created_at DESC,id DESC LIMIT 1',(user_id,entry_id)).fetchone()
+            if latest['id']==row['id']:
+                db.execute('UPDATE debts SET due_day=?,payment_amount=? WHERE user_id=? AND id=?',(row['previous_due'],row['previous_payment'],user_id,entry_id))
             unrecord(db,user_id,row['transaction_id']);db.execute('DELETE FROM debt_payments WHERE user_id=? AND id=?',(user_id,parts[5]));return True
         if method=='DELETE' and len(parts)==4:
             if db.execute('SELECT 1 FROM debt_payments WHERE user_id=? AND debt_id=?',(user_id,entry_id)).fetchone():raise ValueError('Долг с платежами остаётся в истории. Можно отменить ошибочные платежи.')
