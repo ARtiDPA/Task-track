@@ -93,6 +93,12 @@ def main():
             overflow = page.evaluate("document.documentElement.scrollWidth > innerWidth")
             layouts[width] = not overflow
             assert not overflow, f"Horizontal overflow at {width}px"
+            # Summary and chart must follow the heading, without negative-margin overlap.
+            heading = page.locator('.chart-card .section-header').bounding_box()
+            summary = page.locator('.chart-summary').bounding_box()
+            chart = page.locator('.chart-container').bounding_box()
+            assert summary['y'] >= heading['y'] + heading['height'], f'Chart summary overlap at {width}px'
+            assert chart['y'] >= summary['y'] + summary['height'], f'Chart overlap at {width}px'
         page.set_viewport_size({"width": 390, "height": 844})
         page.screenshot(path=str(Path(tempfile.gettempdir()) / "ritmo-mobile.png"), full_page=True)
         page.locator("#add-habit").click()
