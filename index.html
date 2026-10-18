@@ -14,14 +14,19 @@
   <link rel="stylesheet" href="achievements.css">
   <link rel="stylesheet" href="water.css">
   <link rel="stylesheet" href="finance.css">
+  <link rel="stylesheet" href="organizer.css">
   <script src="metrics.js" defer></script>
   <script src="storage.js" defer></script>
   <script src="emoji-catalog.js" defer></script>
   <script src="achievements.js" defer></script>
   <script src="finance-math.js" defer></script>
+  <script src="planner-math.js" defer></script>
   <script src="app.js" defer></script>
   <script src="water.js" defer></script>
   <script src="finance.js" defer></script>
+  <script src="money-organizer.js" defer></script>
+  <script src="planner.js" defer></script>
+  <script src="calendar.js" defer></script>
   <script src="account.js" defer></script>
 </head>
 <body>
@@ -35,6 +40,7 @@
         <button class="nav-item" data-view="habits"><span data-icon="layers"></span>Мои привычки<span class="nav-count" id="habit-count">6</span></button>
         <button class="nav-item" data-view="analytics"><span data-icon="chart"></span>Статистика</button>
         <button class="nav-item" data-view="finance"><span data-icon="wallet"></span>Финансы</button>
+        <button class="nav-item" data-view="calendar"><span data-icon="calendar"></span>Календарь</button>
         <button class="nav-item" data-view="water"><span data-water-icon="drop"></span>Трекер воды</button>
         <button class="nav-item" data-view="achievements"><span data-icon="award"></span>Достижения<span class="tiny-new">NEW</span></button>
       </nav>
@@ -93,9 +99,11 @@
         </section>
 
         <section class="finance-view" id="finance-view" hidden>
+          <div class="finance-sections" id="finance-sections" aria-label="Разделы финансов"><button class="selected" data-finance-section="overview">Обзор</button><button data-finance-section="planning">Планирование</button><button data-finance-section="savings">Копилки</button><button data-finance-section="debts">Долги</button></div>
+          <div id="finance-overview-content">
           <div class="finance-toolbar"><div class="finance-period"><label for="finance-month">Период</label><input type="month" id="finance-month" aria-label="Месяц для анализа финансов"></div><div class="finance-toolbar-actions"><button class="finance-tool-button" id="finance-settings">Остаток и лимит</button><button class="finance-tool-button" id="finance-export">Экспорт ↗</button><button class="button button-primary finance-add" id="finance-add"><span data-icon="plus"></span>Добавить операцию</button></div></div>
           <div class="finance-stats">
-            <article class="card finance-stat finance-balance-card" id="finance-balance-card"><div class="finance-stat-label">Доступно сейчас <span data-icon="wallet"></span></div><div class="finance-stat-value" id="finance-balance">0 ₽</div><div class="finance-stat-foot">На сегодня · по всей внесённой истории</div></article>
+            <article class="card finance-stat finance-balance-card" id="finance-balance-card"><div class="finance-stat-label">Доступно сейчас <span data-icon="wallet"></span></div><div class="finance-stat-value" id="finance-balance">0 ₽</div><div class="finance-stat-foot">На сегодня · по всей внесённой истории<span id="finance-reserved-caption" style="display:block;margin-top:5px"></span></div></article>
             <article class="card finance-stat"><div class="finance-stat-label">Доходы <span data-icon="trend"></span></div><div class="finance-stat-value finance-income-value" id="finance-income">0 ₽</div><div class="finance-stat-foot" id="finance-month-income-label"></div></article>
             <article class="card finance-stat"><div class="finance-stat-label">Расходы <span data-icon="layers"></span></div><div class="finance-stat-value finance-expense-value" id="finance-expenses">0 ₽</div><div class="finance-stat-foot" id="finance-month-expense-label"></div></article>
             <article class="card finance-stat"><div class="finance-stat-label">Итог месяца <span data-icon="chart"></span></div><div class="finance-stat-value" id="finance-net">0 ₽</div><div class="finance-stat-foot" id="finance-net-caption">Доходы минус расходы</div></article>
@@ -108,9 +116,30 @@
           </div>
           <div class="finance-bottom">
             <article class="card finance-history-card" id="finance-history-card"><div class="finance-card-heading"><div><h2>История операций <span class="soft-badge" id="finance-entry-count">0</span></h2><p>Всё, что пришло. Всё, что ушло.</p></div><span data-icon="layers" style="color:#bdaccb"></span></div><div class="finance-history-filters"><input id="finance-search" type="search" placeholder="Найти операцию…" aria-label="Поиск операций"><select id="finance-category-filter" aria-label="Фильтр по категории"><option value="all">Все категории</option></select></div><div class="finance-ledger" id="finance-ledger"></div></article>
-            <article class="card finance-budget-card"><div class="finance-card-heading"><div><h2>Твои рамки комфорта</h2><p>Лимиты помогают замечать лишнее</p></div><button class="text-button" id="finance-budget-settings">Настроить ↗</button></div><div class="finance-budget-summary"><strong id="finance-budget-value">Лимит пока не задан</strong><div class="finance-budget-track"><i id="finance-budget-fill"></i></div><p id="finance-budget-left"></p></div><div class="finance-limit-preview"><strong id="finance-daily">0 ₽</strong> доступно в день<p id="finance-daily-caption" style="margin:5px 0 0;font-size:9px"></p><small>Минимум из текущего баланса и остатка лимита, делённый на оставшиеся дни. Будущие доходы не учитываются.</small></div><div class="finance-category-budgets" id="finance-category-budgets"></div></article>
+            <article class="card finance-budget-card"><div class="finance-card-heading"><div><h2>Твои рамки комфорта</h2><p>Лимиты помогают замечать лишнее</p></div><button class="text-button" id="finance-budget-settings">Настроить ↗</button></div><div class="finance-budget-summary"><strong id="finance-budget-value">Лимит пока не задан</strong><div class="finance-budget-track"><i id="finance-budget-fill"></i></div><p id="finance-budget-left"></p></div><div class="finance-limit-preview"><strong id="finance-daily">0 ₽</strong> доступно в день<p id="finance-daily-caption" style="margin:5px 0 0;font-size:9px"></p><small>Минимум из свободного остатка (без копилок) и остатка лимита, делённый на оставшиеся дни. Будущие доходы не учитываются.</small></div><div class="finance-category-budgets" id="finance-category-budgets"></div></article>
           </div><p class="finance-bottom-note"><span data-icon="check-circle"></span>Только твой профиль. Суммы считаются в копейках, данные сохраняются в базе. Валюта — рубли.</p>
-        </section>
+
+          </div>
+          <div class="org-panel" id="finance-savings-content" hidden>
+            <div class="org-section-heading"><div><h2>У мечты есть свой счёт</h2><p>Отложи на подарок или сохрани деньги в сейфе. Копилки входят в общий остаток и исключаются из свободного бюджета.</p></div><button id="savings-add" class="button button-primary">＋ Новая копилка</button></div>
+            <div class="org-stat-grid"><article class="card org-stat violet"><span>Отложено в копилках</span><strong id="savings-total">0 ₽</strong><small>Деньги зарезервированы, но ещё не потрачены</small></article><article class="card org-stat mint"><span>Свободно для других трат</span><strong id="savings-free">0 ₽</strong><small>Общий остаток минус активные копилки</small></article><article class="card org-stat"><span>Желаний исполнено</span><strong id="savings-done">0</strong><small>Покупки, сделанные из копилок</small></article></div>
+            <div class="org-cards" id="savings-list"></div><article class="card org-locations-card"><h3>Где лежат отложенные деньги</h3><p>Суммы активных копилок по месту хранения. Это не выписка по всем банковским счетам.</p><div class="org-locations" id="savings-locations"></div></article>
+          </div>
+          <div class="org-panel" id="finance-debts-content" hidden>
+            <div class="org-section-heading"><div><h2>Чтобы ничего не висело в голове</h2><p>Кому, сколько и когда. Платежи появляются в календаре, а закрытые долги остаются в истории.</p></div><div class="org-panel-tools"><select class="org-filter" id="debt-filter" aria-label="Показать долги"><option value="open">Открытые</option><option value="closed">Закрытые</option><option value="all">Все долги</option></select><button id="debts-add" class="button button-primary">＋ Добавить долг</button></div></div>
+            <div class="org-stat-grid"><article class="card org-stat rose"><span>Я должен</span><strong id="debts-owe">0 ₽</strong><small>Остаток по открытым долгам</small></article><article class="card org-stat mint"><span>Мне должны</span><strong id="debts-owed">0 ₽</strong><small>Будущие возвраты, не фактические деньги</small></article><article class="card org-stat violet"><span>Закрыто долгов</span><strong id="debts-closed">0</strong><small>Каждый закрытый долг — чуть больше свободы</small></article></div><div class="org-cards" id="debts-list"></div>
+          </div>
+          <div class="org-panel" id="finance-planning-content" hidden>
+            <div class="org-section-heading"><div><h2>У денег есть завтра</h2><p>Рассчитай бюджет до нужной даты. Планы не меняют фактический баланс, пока ты их не проведёшь.</p></div><button class="button button-primary" id="plans-add">＋ Добавить план</button></div>
+            <article class="card planner-setup"><div class="planner-date-row"><div><label for="planner-end">Рассчитать бюджет до</label><input type="date" id="planner-end" required></div><div class="planner-quick"><button data-plan-range="7">На неделю</button><button data-plan-range="30">На 30 дней</button><button data-plan-range="month">До конца месяца</button></div></div><div class="planner-toggles"><label><input id="planner-income-toggle" type="checkbox" checked>Учитывать ожидаемые доходы</label><label><input id="planner-debts-toggle" type="checkbox" checked>Учитывать ближайшие платежи по долгам</label></div><p id="planner-range-caption" class="planner-range-caption"></p></article>
+            <div class="planner-stats"><article class="card planner-stat hero"><span>Можно распределять в день</span><strong id="planner-daily">0 ₽</strong><small>С учётом дат поступлений и обязательств</small></article><article class="card planner-stat"><span>На ближайшую неделю</span><strong id="planner-weekly">0 ₽</strong><small>Дневная сумма × до 7 дней</small></article><article class="card planner-stat"><span>На повседневные траты за период</span><strong id="planner-period">0 ₽</strong><small>Равномерный бюджет до выбранной даты</small></article><article class="card planner-stat"><span>Остаток после планов</span><strong id="planner-ending">0 ₽</strong><small>До вычета повседневных трат</small></article></div>
+            <div class="planner-body"><article class="card planner-chart-card"><h3>Хватит ли денег до этой даты?</h3><p>Свободный остаток по дням, если все выбранные планы исполнятся. Копилки уже исключены.</p><div id="planner-chart"></div><div class="planner-warning" id="planner-warning"></div></article><article class="card planner-summary-card"><h3>Из чего складывается расчёт</h3><div class="planner-breakdown" id="planner-breakdown"></div></article></div>
+            <article class="card planner-obligations-card"><h3>Что учтено до этой даты</h3><div id="planner-obligations"></div><p class="org-footnote" id="planner-undated"></p><p class="org-footnote">По каждому долгу включён только ближайший платёж, без выдуманного графика следующих. Планы условно исполняются в начале указанного дня; прошедшие непроведённые планы — сегодня. Месячные лимиты не списывают деньги и в этот расчёт не входят. Не дублируй платёж по долгу отдельным планом.</p></article>
+            <div class="org-section-heading"><div><h2>Запланированные операции</h2><p>Ожидаемые доходы и расходы на конкретные даты</p></div><select class="org-filter" id="plan-filter" aria-label="Показать планы"><option value="pending">В ожидании</option><option value="posted">Проведённые</option><option value="cancelled">Отменённые</option><option value="all">Все планы</option></select></div><div class="org-plans-list" id="plans-list"></div>
+          </div>
+</section>
+
+        <section class="calendar-view" id="calendar-view" hidden><div class="org-section-heading"><div><h2>Всё важное — в своём дне</h2><p>Твои события, планы по деньгам и ближайшие платежи. Всего в этом месяце: <span id="calendar-month-count">0</span>.</p></div><button id="calendar-add" class="button button-primary">＋ Добавить событие</button></div><div class="calendar-layout"><article class="card calendar-month-card"><div class="calendar-month-toolbar"><h2 id="calendar-month-title"></h2><div class="calendar-month-controls"><button data-calendar-shift="-1" aria-label="Предыдущий месяц">←</button><button id="calendar-today">Сегодня</button><button data-calendar-shift="1" aria-label="Следующий месяц">→</button></div></div><div class="calendar-weekdays"><span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span><span>ПТ</span><span>СБ</span><span>ВС</span></div><div class="calendar-grid" id="calendar-grid"></div><div class="calendar-key"><span><i></i>Событие</span><span><i class="income"></i>Доход</span><span><i class="expense"></i>Расход / платёж</span></div></article><article class="card calendar-agenda-card"><div class="calendar-agenda-head"><div><h3 id="calendar-selected-title"></h3><p id="calendar-day-count"></p></div><button id="calendar-add-selected" aria-label="Добавить событие в выбранный день">＋</button></div><div id="calendar-agenda"></div></article></div></section>
         <footer class="page-footer"><span class="footer-logo">ritmo.</span><span>В твоём ритме. Каждый день.</span><span>Сделано с заботой о тебе <span class="footer-heart">♡</span></span></footer>
       </main>
     </div>

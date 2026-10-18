@@ -17,7 +17,8 @@ globalThis.RitmoFinanceMath=Object.freeze({
     const balance=data.openingBalanceKopecks+entries.reduce((s,e)=>s+(e.kind==='income'?1:-1)*e.amountKopecks,0);
     const groups=categories.filter(c=>c.kind==='expense').map(category=>({...category,total:selected.filter(e=>e.categoryId===category.id).reduce((s,e)=>s+e.amountKopecks,0)})).sort((a,b)=>b.total-a.total);
     const budget=data.monthlyBudgetKopecks||0,remaining=budget-expenses;
-    const available=Math.max(0,budget?Math.min(balance,remaining):balance);
+    const reserved=data.reservedKopecks||0,freeBalance=balance-reserved;
+    const available=Math.max(0,budget?Math.min(freeBalance,remaining):freeBalance);
     const daysLeft=current?days-elapsed+1:0;
     const series=[];
     let running=data.openingBalanceKopecks+entries.filter(e=>e.day<month+'-01').reduce((s,e)=>s+(e.kind==='income'?1:-1)*e.amountKopecks,0);
@@ -28,7 +29,7 @@ globalThis.RitmoFinanceMath=Object.freeze({
       const spent=daily.filter(e=>e.kind==='expense').reduce((s,e)=>s+e.amountKopecks,0);
       running+=added-spent;series.push({day:key,balance:running,income:added,expenses:spent});
     }
-    return {selected,income,expenses,balance,groups,budget,remaining,daysLeft,dailyAvailable:daysLeft?Math.floor(available/daysLeft):0,
+    return {selected,income,expenses,balance,freeBalance,reserved,groups,budget,remaining,daysLeft,dailyAvailable:daysLeft?Math.floor(available/daysLeft):0,
       projected:elapsed?Math.round(expenses/elapsed*days):0,series,current,elapsed,days};
   }
 });

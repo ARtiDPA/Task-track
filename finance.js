@@ -34,6 +34,8 @@ function renderFinance(){
   $('#finance-category-filter').value=data.categories.some(c=>c.id===oldFilter)?oldFilter:'all';
   renderFinanceChart(summary);renderFinanceDonut(summary);renderFinanceInsights(summary);renderFinanceLedger(summary);renderFinanceBudgets(summary);
   if($('#finance-entry-dialog').open)renderFinanceEntryCategories();
+  if(typeof renderMoneyOrganizer==='function')renderMoneyOrganizer();
+  if(typeof renderPlanner==='function')renderPlanner();
 }
 function renderFinanceChart(summary){
   const width=Math.max(260,Math.min(700,$('#finance-chart').clientWidth||600)),height=220,left=43,right=13,top=18,bottom=30,values=summary.series.map(item=>item.balance);
@@ -69,7 +71,7 @@ function renderFinanceLedger(summary){
     return(financeFilter==='all'||entry.categoryId===financeFilter)&&(!query||`${entry.note} ${category?.name||''}`.toLocaleLowerCase('ru').includes(query));
   });
   $('#finance-entry-count').textContent=entries.length;
-  $('#finance-ledger').innerHTML=entries.length?entries.map(entry=>{const category=data.categories.find(c=>c.id===entry.categoryId);return `<div class="finance-entry" data-finance-entry="${entry.id}"><span class="finance-entry-emoji" style="--category-color:${category.color}">${category.emoji}</span><div class="finance-entry-title"><strong>${escapeHTML(entry.note||category.name)}</strong><span>${escapeHTML(category.name)} · ${new Date(entry.day+'T12:00:00').toLocaleDateString('ru-RU',{day:'numeric',month:'short'})}</span></div><strong class="finance-entry-amount ${entry.kind}">${entry.kind==='income'?'+':'−'}${formatMoney(entry.amountKopecks)}</strong><div class="finance-entry-actions"><button data-edit-finance="${entry.id}" aria-label="Изменить операцию">${icon('edit')}</button><button data-delete-finance="${entry.id}" aria-label="Удалить операцию">${icon('x')}</button></div></div>`;}).join(''):`<div class="finance-empty"><span>↗</span><strong>${summary.selected.length?'Ничего не найдено':'Твоя финансовая история начинается здесь'}</strong><p>${summary.selected.length?'Измени поиск или категорию.':'Добавь доход или расход — остальное посчитаем за тебя.'}</p></div>`;
+  $('#finance-ledger').innerHTML=entries.length?entries.map(entry=>{const category=data.categories.find(c=>c.id===entry.categoryId);return `<div class="finance-entry" data-finance-entry="${entry.id}"><span class="finance-entry-emoji" style="--category-color:${category.color}">${category.emoji}</span><div class="finance-entry-title"><strong>${escapeHTML(entry.note||category.name)}</strong><span>${escapeHTML(category.name)} · ${new Date(entry.day+'T12:00:00').toLocaleDateString('ru-RU',{day:'numeric',month:'short'})}</span></div><strong class="finance-entry-amount ${entry.kind}">${entry.kind==='income'?'+':'−'}${formatMoney(entry.amountKopecks)}</strong><div class="finance-entry-actions">${entry.source?`<button class="org-linked-label" data-linked-finance="${entry.source}" data-entity="${entry.entityId}" aria-label="Открыть связанную запись">Связано ↗</button>`:`<button data-edit-finance="${entry.id}" aria-label="Изменить операцию">${icon('edit')}</button><button data-delete-finance="${entry.id}" aria-label="Удалить операцию">${icon('x')}</button>`}</div></div>`;}).join(''):`<div class="finance-empty"><span>↗</span><strong>${summary.selected.length?'Ничего не найдено':'Твоя финансовая история начинается здесь'}</strong><p>${summary.selected.length?'Измени поиск или категорию.':'Добавь доход или расход — остальное посчитаем за тебя.'}</p></div>`;
 }
 function renderFinanceBudgets(summary){
   const categories=summary.groups.filter(c=>c.total||c.budgetKopecks);
@@ -116,6 +118,7 @@ $('#finance-entry-form').addEventListener('submit',async event=>{
   finally{financeWorking=false;$('#finance-save-entry').disabled=false;}
 });
 $('#finance-ledger').addEventListener('click',async event=>{
+  const linked=event.target.closest('[data-linked-finance]');if(linked){jumpToMoney(({savings:'savings',debt:'debts',plan:'planning'})[linked.dataset.linkedFinance],linked.dataset.entity);return;}
   const edit=event.target.closest('[data-edit-finance]');if(edit){openFinanceEntry(edit.dataset.editFinance);return;}
   const remove=event.target.closest('[data-delete-finance]');if(!remove||saving||financeWorking)return;
   if(!confirm('Удалить эту операцию? Баланс и статистика будут пересчитаны.'))return;

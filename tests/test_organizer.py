@@ -95,5 +95,18 @@ class OrganizerTests(ServerFixture):
         for resource,identifier in [('savings','gift'),('debts','credit'),('plans','rent'),('events','party')]:
             self.assertEqual(self.request(f'/api/organizer/{resource}/{identifier}','DELETE',{})[0],404)
 
+    def test_calendar_events_can_be_edited_and_deleted_with_date_validation(self):
+        event=dict(id='meeting',title='Встреча',day='2027-02-28',time='18:30',note='Адрес')
+        self.request('/api/organizer/events','POST',event)
+        event['title']='Новая встреча'
+        self.assertEqual(self.request('/api/organizer/events/meeting','PATCH',event)[0],200)
+        self.assertEqual(self.request()[1]['organizer']['events'][0]['title'],'Новая встреча')
+        event['day']='2027-02-30'
+        self.assertEqual(self.request('/api/organizer/events/meeting','PATCH',event)[0],400)
+        event.update(day='2027-02-28',time='29:00')
+        self.assertEqual(self.request('/api/organizer/events/meeting','PATCH',event)[0],400)
+        self.assertEqual(self.request('/api/organizer/events/meeting','DELETE',{})[0],200)
+        self.assertEqual(self.request()[1]['organizer']['events'],[])
+
 
 if __name__=='__main__':unittest.main()
