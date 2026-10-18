@@ -31,8 +31,8 @@ const colors = ['#9772db','#6aaa91','#ddac6e','#7c9ed0','#cf8ba5','#6bafb8'];
 const emojis = RitmoEmojiCatalog.map(item=>item.emoji);
 let emojiCategory='Все';
 let ready = false, saving = false, stateRevision = 0;
+let currentUser=null;
 let state;
-try {state = JSON.parse(localStorage.getItem('ritmo-v1'));} catch { /* A blocked local cache does not prevent database access. */ }
 if (!state || !Array.isArray(state.habits)) {
   state = {habits:[
     {id:'reading',name:'Читать 20 минут',category:'Развитие',emoji:'📖',color:colors[0],logs:[]},
@@ -47,6 +47,7 @@ state.habits = state.habits.filter(h => h && typeof h.id==='string' && typeof h.
   const logs=Array.isArray(h.logs)?h.logs:[],createdAt=RitmoMetrics.creationDate({...h,logs},todayKey);
   return {...h,createdAt,category:typeof h.category==='string'?h.category:'Другое',emoji:emojis.includes(h.emoji)?h.emoji:'🌿',color:colors.includes(h.color)?h.color:colors[0],logs:[...new Set(logs.filter(d=>typeof d==='string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && d<=todayKey && d>=createdAt))]};
 });
+const starterHabits=state.habits.map(h=>({...h,logs:[]}));
 let period='week', view='dashboard', selectedEmoji=emojis[0], selectedColor=colors[0], editingId=null, toastTimer;
 function setSaveStatus(message, failed=false) {
   const label=$('.live-label');label.innerHTML='<i></i>'+escapeHTML(message);
@@ -79,10 +80,11 @@ async function connectStorage() {
   $('#connection-symbol').classList.remove('connection-error');
   try {
     let remote=await RitmoStorage.request();
-    if(!remote.initialized)remote=await RitmoStorage.request('/api/import','POST',{habits:state.habits});
-    state=remote;RitmoStorage.cache(state);ready=true;render();
+    if(!remote.initialized)remote=await RitmoStorage.request('/api/import','POST',{habits:starterHabits.map(h=>({...h,createdAt:todayKey,logs:[]}))});
+    state=remote;currentUser=remote.user;RitmoStorage.cache(state);ready=true;render();
     setSaveStatus('Сохранено в базе');$('#connection-panel').hidden=true;$('.app-shell').inert=false;
   } catch(error) {
+    if(error.status===401){await showAuth();return;}
     setSaveStatus('Нет соединения',true);
     $('#connection-title').textContent='Не удалось открыть хранилище';
     $('#connection-description').textContent='Проверь, запущено ли приложение, и повтори подключение. Сохранённые данные останутся в базе.';
@@ -112,7 +114,7 @@ function totalForDay(date, habits=state.habits){const key=dateKey(date);return R
 function percentage(date){return RitmoMetrics.rate(state.habits,[dateKey(date)]);}
 function plural(n,forms){return forms[n%10===1&&n%100!==11?0:n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?1:2];}
 function toast(message){$('#toast-text').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),3500);}
-function render(){renderDates();renderHabits();renderStats();renderChart();renderActivityOptions();renderHeatmap();renderAchievements();}
+function render(){renderDates();renderHabits();renderStats();renderChart();renderActivityOptions();renderHeatmap();renderAchievements();if(typeof renderAccount==='function')renderAccount();}
 function renderHabits(){
   $('#habit-count').textContent=state.habits.length;$('#habits-badge').textContent=state.habits.length;
   $('#habit-list').innerHTML=state.habits.length?state.habits.map((h,index)=>`<div class="habit-row" style="--habit-color:${h.color};animation-delay:${index*.035}s"><div class="habit-info"><span class="habit-emoji">${h.emoji}</span><div class="habit-detail"><div class="habit-name" title="${escapeHTML(h.name)}">${escapeHTML(h.name)}</div><span class="habit-category">${escapeHTML(h.category)}</span></div></div><div class="habit-week">${week.map((d,i)=>{const key=dateKey(d),done=h.logs.includes(key),future=d>today,notStarted=key<h.createdAt;return `<button class="day-check ${done?'done':''} ${key===todayKey?'today':''}" data-day="${dayNames[i]}" data-habit="${escapeHTML(h.id)}" data-date="${key}" ${future||notStarted?'disabled':''} aria-pressed="${done}" aria-label="${escapeHTML(h.name)}, ${d.toLocaleDateString('ru-RU')}${done?', выполнено':''}" title="${d.toLocaleDateString('ru-RU')}${future?' — ещё впереди':notStarted?' — до создания привычки':''}">${done?icon('check'):'<span>·</span>'}</button>`;}).join('')}</div><div class="habit-streak" title="Текущая серия">${icon('flame')}${streak(h)}</div><button class="habit-edit" data-edit="${escapeHTML(h.id)}" aria-label="Изменить привычку ${escapeHTML(h.name)}">${icon('edit')}</button></div>`).join(''):'<div class="empty-habits">Пока здесь чистый лист 🌱<br>Добавь первую привычку и начни свою историю.</div>';
@@ -221,7 +223,6 @@ $('#habit-form').addEventListener('submit',async e=>{
 });
 $('#habit-name').addEventListener('input',()=>$('#habit-name').setCustomValidity(''));
 $('#notification-button').addEventListener('click',()=>toast('Твой ритм важнее чужой скорости. Начни с одного шага 🌿'));
-$('#profile-button').addEventListener('click',()=>toast('Это твоё личное пространство. Привычки и прогресс сохраняются в базе данных ♡'));
 window.addEventListener('focus',refreshStorage);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){const now=new Date();now.setHours(0,0,0,0);if(dateKey(now)!==todayKey){today=now;todayKey=dateKey(today);weekStart=shiftDate(today,-((today.getDay()+6)%7));week=Array.from({length:7},(_,i)=>shiftDate(weekStart,i));render();}refreshStorage();}});
-render();connectStorage();
+render();

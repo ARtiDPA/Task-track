@@ -6,9 +6,10 @@ Uses installed Microsoft Edge; no browser download required on Windows.
 import json
 import tempfile
 import threading
+import uuid
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
-from test_server import QuietHandler, Store, ThreadingHTTPServer
+from test_server import QuietHandler, Store, ThreadingHTTPServer, Auth
 
 
 def run_checks(url):
@@ -18,6 +19,9 @@ def run_checks(url):
         page = context.new_page()
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
+        response=page.request.post(url+'/api/auth/register',data={'email':'smoke@example.com','name':'Smoke','password':'smoke-password'})
+        assert response.ok,response.text()
+        api_headers={'Authorization':'Bearer '+response.json()['accessToken']}
         page.goto(url)
         expect(page.locator('#connection-panel')).not_to_be_visible()
         expect(page.locator(".habit-row")).to_have_count(6)
@@ -45,6 +49,7 @@ def run_checks(url):
         # A new browser context gets its progress from SQLite, without a local cache.
         second = browser.new_context(timezone_id='Europe/Moscow')
         other = second.new_page()
+        other.request.post(url+'/api/auth/login',data={'email':'smoke@example.com','password':'smoke-password'})
         other.goto(url)
         expect(other.locator('#connection-panel')).not_to_be_visible()
         expect(other.locator('#total-done')).to_have_text('1')
@@ -126,8 +131,8 @@ def run_checks(url):
         expect(page.locator("#habit-dialog")).not_to_be_visible()
 
         # Safe rendering and the fully empty state.
-        for habit in page.request.get(url+'/api/state').json()['habits']:
-            response=page.request.delete(url+'/api/habits/'+habit['id'], data={})
+        for habit in page.request.get(url+'/api/state',headers=api_headers).json()['habits']:
+            response=page.request.delete(url+'/api/habits/'+habit['id'], data={},headers=api_headers)
             assert response.ok
         page.reload()
         expect(page.locator('#connection-panel')).not_to_be_visible()
@@ -147,6 +152,7 @@ def main():
     with tempfile.TemporaryDirectory() as directory:
         server = ThreadingHTTPServer(('127.0.0.1', 0), QuietHandler)
         server.store = Store(Path(directory) / 'browser.sqlite3')
+        server.auth = Auth('smoke-test-key-with-thirty-two-bytes',prefix='ritmo-test:'+uuid.uuid4().hex+':')
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
@@ -155,6 +161,9 @@ def main():
             server.shutdown()
             server.server_close()
             thread.join()
+            keys=list(server.auth.redis.scan_iter(server.auth.prefix+'*'))
+            if keys:server.auth.redis.delete(*keys)
+            server.auth.redis.close()
 
 
 if __name__ == "__main__":
