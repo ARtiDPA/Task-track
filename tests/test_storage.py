@@ -42,6 +42,31 @@ class StorageTests(unittest.TestCase):
         if keys:self.server.auth.redis.delete(*keys)
         self.server.auth.redis.close()
 
+    def test_planned_income_and_payment_can_be_added_directly_on_calendar_day(self):
+        self.register()
+        self.page.goto(self.url)
+        self.page.wait_for_function('ready')
+        self.page.evaluate("setView('finance')")
+        self.page.locator('#finance-overview-content [data-new-plan=income]').click()
+        expect(self.page.locator('#plan-kind')).to_have_value('income')
+        self.page.locator('#org-plan-dialog .icon-button').click()
+        self.page.evaluate("setView('calendar');calendarDay='2027-02-15';calendarMonth='2027-02';renderCalendar()")
+        for kind,name,amount in [('income','Зарплата','50000'),('expense','Аренда','15000')]:
+            self.page.locator(f'#calendar-view [data-new-plan={kind}]').click()
+            expect(self.page.locator('#plan-day')).to_have_value('2027-02-15')
+            expect(self.page.locator('#plan-kind')).to_have_value(kind)
+            self.page.locator('#plan-name').fill(name)
+            self.page.locator('#plan-amount').fill(amount)
+            self.page.locator('#org-plan-dialog [type=submit]').click()
+            expect(self.page.locator('#org-plan-dialog')).not_to_be_visible()
+            expect(self.page.locator('#calendar-agenda')).to_contain_text(name)
+        self.page.reload()
+        self.page.wait_for_function('ready')
+        data=self.page.request.get(self.url+'/api/state',headers=self.api_headers).json()
+        self.assertEqual(len(data['organizer']['plans']),2)
+        self.assertEqual(data['finance']['balanceKopecks'],0)
+        self.assertEqual(data['finance']['transactions'],[])
+
     def seed_legacy(self):
         with self.server.store.connect() as db:
             db.execute('INSERT INTO habits VALUES (?,?,?,?,?,?,?)',('legacy','Старая привычка','Развитие','📖','#9772db',today(),0))

@@ -6,10 +6,11 @@ function renderPlannerCategories(selected=''){
 }
 orgDialog('org-plan-dialog','План на твои деньги',`<p>Это ожидание, а не фактическая операция. Баланс изменится только после кнопки «Провести».</p>${orgField('Название','<input id="plan-name" maxlength="80" placeholder="Аренда, зарплата, подарок…" required>')}<div class="org-fields">${orgField('Тип','<select id="plan-kind"><option value="expense">Плановый расход</option><option value="income">Ожидаемый доход</option></select>')}${orgField('Сумма, ₽',orgInput('plan-amount','','required'))}</div>${orgField('Ожидаемая дата','<input id="plan-day" type="date" min="1900-01-01" max="2100-12-31" required>')}${orgField('Категория','<select id="plan-category" required></select>')}`,async()=>persist(planEditing?'/api/organizer/plans/'+planId:'/api/organizer/plans',planEditing?'PATCH':'POST',{id:planId,name:$('#plan-name').value.trim(),kind:$('#plan-kind').value,categoryId:$('#plan-category').value,amountKopecks:orgAmount($('#plan-amount').value),day:$('#plan-day').value}));
 $('#plan-kind').addEventListener('change',()=>renderPlannerCategories());
-function openPlan(id=null,day=''){
+function openPlan(id=null,day='',kind='expense'){
   if(!openOrgDialog('org-plan-dialog'))return;const p=orgData().plans.find(p=>p.id===id);planId=id||crypto.randomUUID();planEditing=Boolean(p);
-  $('#plan-name').value=p?.name||'';$('#plan-kind').value=p?.kind||'expense';$('#plan-amount').value=p?orgMoneyInput(p.amountKopecks):'';$('#plan-day').value=p?.day||day||dateKey(shiftDate(today,1));renderPlannerCategories(p?.categoryId);
+  $('#plan-name').value=p?.name||'';$('#plan-kind').value=p?.kind||kind;$('#plan-amount').value=p?orgMoneyInput(p.amountKopecks):'';$('#plan-day').value=p?.day||day||dateKey(shiftDate(today,1));renderPlannerCategories(p?.categoryId);
 }
+document.querySelectorAll('[data-new-plan]').forEach(button=>button.addEventListener('click',()=>openPlan(null,button.closest('#calendar-view')?calendarDay:'',button.dataset.newPlan)));
 orgDialog('org-post-plan-dialog','План стал реальностью',`<p id="plan-post-caption"></p>${orgField('Когда деньги пришли или ушли?','<input id="plan-actual-day" type="date" min="1900-01-01" required>')}<small>Создадим одну фактическую операцию. План перестанет участвовать в прогнозе, поэтому повторного учёта не будет.</small>`,async()=>persist(`/api/organizer/plans/${postPlanId}/post`,'POST',{actualDay:$('#plan-actual-day').value}),'Провести в финансах ✓');
 function renderPlanner(){
   $('#planner-end').value=plannerEnd;$('#planner-end').min=todayKey;$('#planner-end').max=dateKey(shiftDate(today,365));
