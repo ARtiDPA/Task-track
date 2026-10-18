@@ -28,7 +28,8 @@ let todayKey = dateKey(today);
 const shiftDate = (date, delta) => {const d = new Date(date); d.setDate(d.getDate()+delta); return d;};
 const escapeHTML = value => String(value).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 const colors = ['#9772db','#6aaa91','#ddac6e','#7c9ed0','#cf8ba5','#6bafb8'];
-const emojis = ['📖','💧','🧘','🏃','🌙','✍️','🌿','💪','🎨','🎸','🥗','☀️'];
+const emojis = RitmoEmojiCatalog.map(item=>item.emoji);
+let emojiCategory='Все';
 let ready = false, saving = false, stateRevision = 0;
 let state;
 try {state = JSON.parse(localStorage.getItem('ritmo-v1'));} catch { /* A blocked local cache does not prevent database access. */ }
@@ -167,11 +168,18 @@ $('.brand').addEventListener('click',e=>{e.preventDefault();setView('dashboard')
 $('#all-habits').addEventListener('click',()=>setView('habits'));
 document.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{period=b.dataset.period;document.querySelectorAll('[data-period]').forEach(el=>{el.classList.toggle('selected',el===b);el.setAttribute('aria-pressed',el===b);});renderStats();renderChart();}));
 $('#activity-habit').addEventListener('change',renderHeatmap);
-function renderPickers(){$('#emoji-picker').innerHTML=emojis.map(e=>`<button type="button" class="emoji-option ${e===selectedEmoji?'selected':''}" data-emoji="${e}" aria-label="Значок ${e}" aria-pressed="${e===selectedEmoji}">${e}</button>`).join('');$('#color-picker').innerHTML=colors.map((c,i)=>`<button type="button" class="color-option ${c===selectedColor?'selected':''}" style="--color:${c}" data-color="${c}" aria-label="${['Фиолетовый','Зелёный','Золотистый','Голубой','Розовый','Бирюзовый'][i]}" aria-pressed="${c===selectedColor}"></button>`).join('');}
+function renderPickers(){
+  const query=$('#emoji-search').value.trim().toLocaleLowerCase('ru');
+  const filtered=RitmoEmojiCatalog.filter(item=>(emojiCategory==='Все'||item.category===emojiCategory)&&`${item.name} ${item.category} ${item.emoji}`.toLocaleLowerCase('ru').includes(query));
+  $('#emoji-picker').innerHTML=filtered.length?filtered.map(item=>`<button type="button" class="emoji-option ${item.emoji===selectedEmoji?'selected':''}" data-emoji="${item.emoji}" aria-label="${item.name}" title="${item.name}" aria-pressed="${item.emoji===selectedEmoji}">${item.emoji}</button>`).join(''):'<p class="emoji-empty" role="status">Ничего не найдено. Попробуй другое слово.</p>';
+  $('#emoji-categories').innerHTML=['Все',...RitmoEmojiGroups.map(group=>group.name)].map(name=>`<button type="button" data-emoji-category="${name}" class="emoji-category ${name===emojiCategory?'selected':''}" aria-pressed="${name===emojiCategory}">${name}</button>`).join('');
+  $('#color-picker').innerHTML=colors.map((c,i)=>`<button type="button" class="color-option ${c===selectedColor?'selected':''}" style="--color:${c}" data-color="${c}" aria-label="${['Фиолетовый','Зелёный','Золотистый','Голубой','Розовый','Бирюзовый'][i]}" aria-pressed="${c===selectedColor}"></button>`).join('');
+}
 function openModal(id=null){
   if(!ready||saving)return;
   editingId=id;const habit=state.habits.find(h=>h.id===id);
   $('#habit-form').reset();$('#habit-name').setCustomValidity('');
+  emojiCategory='Все';$('#emoji-search').value='';
   selectedEmoji=habit?.emoji||emojis[0];selectedColor=habit?.color||colors[state.habits.length%colors.length];
   $('#habit-name').value=habit?.name||'';$('#habit-category').value=habit?.category||'Здоровье';
   $('#modal-title').textContent=habit?'Твоя привычка, твои правила':'Большое начинается с малого';
@@ -194,6 +202,12 @@ $('#habit-dialog').setAttribute('aria-labelledby','modal-title');
 ['#close-modal','#cancel-modal'].forEach(id=>$(id).addEventListener('click',()=>$('#habit-dialog').close()));
 $('#habit-dialog').addEventListener('click',e=>{if(e.target===$('#habit-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
 $('#emoji-picker').addEventListener('click',e=>{const b=e.target.closest('[data-emoji]');if(b){selectedEmoji=b.dataset.emoji;renderPickers();[...document.querySelectorAll('[data-emoji]')].find(el=>el.dataset.emoji===selectedEmoji)?.focus();}});
+$('#emoji-search').addEventListener('input',renderPickers);
+$('#emoji-categories').addEventListener('click',e=>{
+  const button=e.target.closest('[data-emoji-category]');if(!button)return;
+  emojiCategory=button.dataset.emojiCategory;renderPickers();
+  [...document.querySelectorAll('[data-emoji-category]')].find(b=>b.dataset.emojiCategory===emojiCategory)?.focus();
+});
 $('#color-picker').addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(b){selectedColor=b.dataset.color;renderPickers();[...document.querySelectorAll('[data-color]')].find(el=>el.dataset.color===selectedColor)?.focus();}});
 $('#habit-form').addEventListener('submit',async e=>{
   e.preventDefault();if(!ready||saving)return;

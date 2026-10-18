@@ -76,6 +76,33 @@ class StorageTests(unittest.TestCase):
         expect(self.page.locator('#connection-panel')).not_to_be_visible()
         expect(self.page.locator('#total-done')).to_have_text('1')
 
+    def test_more_icons_can_be_searched_selected_and_saved(self):
+        self.page.goto(self.url)
+        expect(self.page.locator('#connection-panel')).not_to_be_visible()
+        self.page.locator('#add-habit').click()
+        expect(self.page.locator('.emoji-option')).to_have_count(72)
+        self.page.locator('[data-emoji-category="Творчество"]').click()
+        expect(self.page.locator('.emoji-option')).to_have_count(12)
+        self.page.locator('#emoji-search').fill('пиан')
+        expect(self.page.locator('.emoji-option')).to_have_count(1)
+        self.page.locator('[data-emoji="🎹"]').click()
+        self.page.locator('#habit-name').fill('Играть на пианино')
+        self.page.locator('#save-habit').click()
+        expect(self.page.locator('#habit-dialog')).not_to_be_visible()
+        expect(self.page.locator('.habit-row').last.locator('.habit-emoji')).to_have_text('🎹')
+        self.page.reload()
+        expect(self.page.locator('#connection-panel')).not_to_be_visible()
+        expect(self.page.locator('.habit-row').last.locator('.habit-emoji')).to_have_text('🎹')
+        data=self.page.request.get(self.url+'/api/state').json()
+        self.assertEqual(data['habits'][-1]['emoji'], '🎹')
+        self.page.set_viewport_size({'width':390,'height':700})
+        self.page.locator('#add-habit').click()
+        self.page.locator('#emoji-search').fill('несуществующий значок')
+        expect(self.page.locator('.emoji-empty')).to_be_visible()
+        self.page.locator('#emoji-search').fill('')
+        expect(self.page.locator('.emoji-option')).to_have_count(72)
+        self.page.locator('#habit-dialog').screenshot(path=str(Path(tempfile.gettempdir())/'ritmo-icons.png'))
+
 
 if __name__ == '__main__':
     unittest.main()
