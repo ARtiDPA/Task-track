@@ -67,6 +67,29 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(data['finance']['balanceKopecks'],0)
         self.assertEqual(data['finance']['transactions'],[])
 
+    def test_monthly_debt_calendar_and_budget_share_the_same_schedule(self):
+        self.register();self.page.goto(self.url);self.page.wait_for_function('ready')
+        self.page.evaluate("setView('finance');setFinanceSection('debts')")
+        self.page.locator('#debts-add').click()
+        self.page.locator('#debt-name').fill('Рассрочка по месяцам')
+        self.page.locator('#debt-amount').fill('25000')
+        self.page.locator('#debt-next-amount').fill('10000')
+        self.page.locator('#debt-date').fill('2027-01-31')
+        self.page.locator('#debt-repeat').select_option('1')
+        expect(self.page.locator('#debt-monthly-day')).to_have_value('31')
+        expect(self.page.locator('#debt-monthly-amount')).to_have_value('10000')
+        self.page.locator('#org-debt-dialog [type=submit]').click()
+        expect(self.page.locator('#org-debt-dialog')).not_to_be_visible()
+        self.page.evaluate("setView('calendar');calendarMonth='2027-02';calendarDay='2027-02-28';renderCalendar()")
+        expect(self.page.locator('#calendar-agenda')).to_contain_text('Ежемесячный платёж')
+        rows=self.page.evaluate("calendarItems('2027-01-01','2027-12-31').filter(i=>i.source==='debt')")
+        self.assertEqual([r['day'] for r in rows],['2027-01-31','2027-02-28','2027-03-31'])
+        self.assertEqual([r['amount'] for r in rows],[1000000,1000000,500000])
+        result=self.page.evaluate("RitmoPlanner.calculate(financeData(),orgData(),'2027-01-01','2027-04-01')")
+        self.assertEqual(result['expenses'],2500000)
+        self.page.reload();self.page.wait_for_function('ready')
+        self.assertEqual(self.page.evaluate('orgData().debts[0].monthlyDay'),31)
+
     def seed_legacy(self):
         with self.server.store.connect() as db:
             db.execute('INSERT INTO habits VALUES (?,?,?,?,?,?,?)',('legacy','Старая привычка','Развитие','📖','#9772db',today(),0))
