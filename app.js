@@ -29,9 +29,9 @@ const shiftDate = (date, delta) => {const d = new Date(date); d.setDate(d.getDat
 const escapeHTML = value => String(value).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 const colors = ['#9772db','#6aaa91','#ddac6e','#7c9ed0','#cf8ba5','#6bafb8'];
 const emojis = ['📖','💧','🧘','🏃','🌙','✍️','🌿','💪','🎨','🎸','🥗','☀️'];
-let storageAvailable = true;
+let ready = false, saving = false, stateRevision = 0;
 let state;
-try {state = JSON.parse(localStorage.getItem('ritmo-v1'));} catch {storageAvailable = false;}
+try {state = JSON.parse(localStorage.getItem('ritmo-v1'));} catch { /* A blocked local cache does not prevent database access. */ }
 if (!state || !Array.isArray(state.habits)) {
   state = {habits:[
     {id:'reading',name:'Читать 20 минут',category:'Развитие',emoji:'📖',color:colors[0],logs:[]},
@@ -47,7 +47,60 @@ state.habits = state.habits.filter(h => h && typeof h.id==='string' && typeof h.
   return {...h,createdAt,category:typeof h.category==='string'?h.category:'Другое',emoji:emojis.includes(h.emoji)?h.emoji:'🌿',color:colors.includes(h.color)?h.color:colors[0],logs:[...new Set(logs.filter(d=>typeof d==='string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && d<=todayKey && d>=createdAt))]};
 });
 let period='week', view='dashboard', selectedEmoji=emojis[0], selectedColor=colors[0], editingId=null, toastTimer;
-function save(){try {localStorage.setItem('ritmo-v1',JSON.stringify(state));return true;}catch {storageAvailable=false;toast('Браузер запретил сохранение. Изменения доступны до закрытия страницы.');return false;}}
+function setSaveStatus(message, failed=false) {
+  const label=$('.live-label');label.innerHTML='<i></i>'+escapeHTML(message);
+  label.classList.toggle('save-error',failed);
+}
+function setSaving(value) {
+  saving=value;
+  $('#habit-list').inert=value;$('#habit-form').inert=value;
+  $('#add-habit').disabled=value;$('#add-inline').disabled=value;
+  if(value)setSaveStatus('Сохраняем…');
+}
+async function persist(path,method,body) {
+  if(!ready||saving)return false;
+  stateRevision++;
+  setSaving(true);
+  try {
+    state=await RitmoStorage.request(path,method,body);
+    RitmoStorage.cache(state);render();setSaveStatus('Сохранено в базе');
+    return true;
+  } catch(error) {
+    setSaveStatus('Не сохранено',true);toast(error.message);
+    return false;
+  } finally {setSaving(false);}
+}
+async function connectStorage() {
+  $('.app-shell').inert=true;
+  $('#connection-panel').hidden=false;$('#retry-connection').hidden=true;
+  $('#connection-title').textContent='Собираем твой ритм';
+  $('#connection-description').textContent='Загружаем привычки и сохранённый прогресс.';
+  $('#connection-symbol').classList.remove('connection-error');
+  try {
+    let remote=await RitmoStorage.request();
+    if(!remote.initialized)remote=await RitmoStorage.request('/api/import','POST',{habits:state.habits});
+    state=remote;RitmoStorage.cache(state);ready=true;render();
+    setSaveStatus('Сохранено в базе');$('#connection-panel').hidden=true;$('.app-shell').inert=false;
+  } catch(error) {
+    setSaveStatus('Нет соединения',true);
+    $('#connection-title').textContent='Не удалось открыть хранилище';
+    $('#connection-description').textContent='Проверь, запущено ли приложение, и повтори подключение. Сохранённые данные останутся в базе.';
+    $('#connection-symbol').classList.add('connection-error');
+    $('#retry-connection').hidden=false;
+    $('#retry-connection').focus();
+  }
+}
+$('#retry-connection').addEventListener('click',connectStorage);
+async function refreshStorage() {
+  if(!ready||saving)return;
+  const revision=stateRevision;
+  try {
+    const remote=await RitmoStorage.request();
+    if(saving||revision!==stateRevision)return;
+    if(JSON.stringify(remote)!==JSON.stringify(state)){state=remote;RitmoStorage.cache(state);render();}
+    setSaveStatus('Сохранено в базе');
+  } catch {if(!saving)setSaveStatus('Нет соединения',true);}
+}
 let weekStart = shiftDate(today,-((today.getDay()+6)%7));
 let week = Array.from({length:7},(_,i)=>shiftDate(weekStart,i));
 const dayNames=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -61,7 +114,7 @@ function toast(message){$('#toast-text').textContent=message;$('#toast').classLi
 function render(){renderDates();renderHabits();renderStats();renderChart();renderActivityOptions();renderHeatmap();renderAchievements();}
 function renderHabits(){
   $('#habit-count').textContent=state.habits.length;$('#habits-badge').textContent=state.habits.length;
-  $('#habit-list').innerHTML=state.habits.length?state.habits.map((h,index)=>`<div class="habit-row" style="--habit-color:${h.color};animation-delay:${index*.035}s"><div class="habit-info"><span class="habit-emoji">${h.emoji}</span><div class="habit-detail"><div class="habit-name" title="${escapeHTML(h.name)}">${escapeHTML(h.name)}</div><span class="habit-category">${escapeHTML(h.category)}</span></div></div><div class="habit-week">${week.map((d,i)=>{const key=dateKey(d),done=h.logs.includes(key),future=d>today,notStarted=key<h.createdAt;return `<button class="day-check ${done?'done':''} ${key===todayKey?'today':''}" data-day="${dayNames[i]}" data-habit="${escapeHTML(h.id)}" data-date="${key}" ${future||notStarted?'disabled':''} aria-pressed="${done}" aria-label="${escapeHTML(h.name)}, ${d.toLocaleDateString('ru-RU')}${done?', выполнено':''}" title="${d.toLocaleDateString('ru-RU')}${future?' — ещё впереди':''}">${done?icon('check'):'<span>·</span>'}</button>`;}).join('')}</div><div class="habit-streak" title="Текущая серия">${icon('flame')}${streak(h)}</div><button class="habit-edit" data-edit="${escapeHTML(h.id)}" aria-label="Изменить привычку ${escapeHTML(h.name)}">${icon('edit')}</button></div>`).join(''):'<div class="empty-habits">Пока здесь чистый лист 🌱<br>Добавь первую привычку и начни свою историю.</div>';
+  $('#habit-list').innerHTML=state.habits.length?state.habits.map((h,index)=>`<div class="habit-row" style="--habit-color:${h.color};animation-delay:${index*.035}s"><div class="habit-info"><span class="habit-emoji">${h.emoji}</span><div class="habit-detail"><div class="habit-name" title="${escapeHTML(h.name)}">${escapeHTML(h.name)}</div><span class="habit-category">${escapeHTML(h.category)}</span></div></div><div class="habit-week">${week.map((d,i)=>{const key=dateKey(d),done=h.logs.includes(key),future=d>today,notStarted=key<h.createdAt;return `<button class="day-check ${done?'done':''} ${key===todayKey?'today':''}" data-day="${dayNames[i]}" data-habit="${escapeHTML(h.id)}" data-date="${key}" ${future||notStarted?'disabled':''} aria-pressed="${done}" aria-label="${escapeHTML(h.name)}, ${d.toLocaleDateString('ru-RU')}${done?', выполнено':''}" title="${d.toLocaleDateString('ru-RU')}${future?' — ещё впереди':notStarted?' — до создания привычки':''}">${done?icon('check'):'<span>·</span>'}</button>`;}).join('')}</div><div class="habit-streak" title="Текущая серия">${icon('flame')}${streak(h)}</div><button class="habit-edit" data-edit="${escapeHTML(h.id)}" aria-label="Изменить привычку ${escapeHTML(h.name)}">${icon('edit')}</button></div>`).join(''):'<div class="empty-habits">Пока здесь чистый лист 🌱<br>Добавь первую привычку и начни свою историю.</div>';
 }
 function renderStats(){
   const count=state.habits.length,done=totalForDay(today),all=state.habits.reduce((sum,h)=>sum+h.logs.length,0);
@@ -90,7 +143,24 @@ function renderHeatmap(){
 }
 function renderAchievements(){const total=state.habits.reduce((n,h)=>n+h.logs.length,0),best=Math.max(0,...state.habits.map(bestStreak));const achievements=[['🌱','Первый шаг','Выполни свою первую привычку',total>=1],['✨','Идеальный день','Выполни все привычки за один день',state.habits.length>0&&state.habits.some(h=>h.logs.some(key=>RitmoMetrics.activeOn(state.habits,key).every(active=>active.logs.includes(key))))],['🔥','Поймать ритм','Поддерживай привычку 7 дней подряд',best>=7],['💎','Маленькие победы','Собери 50 выполнений привычек',total>=50],['🏆','Сила постоянства','Поддерживай привычку 30 дней подряд',best>=30],['🚀','Большие перемены','Собери 100 выполнений привычек',total>=100]];$('#achievements-view').innerHTML=achievements.map(([emoji,name,description,unlocked])=>`<article class="card achievement ${unlocked?'':'locked'}"><span class="achievement-symbol">${emoji}</span><h2>${name}</h2><p>${description}</p><span class="achievement-status">${unlocked?'✓ Достижение получено':'Ещё впереди'}</span></article>`).join('');}
 function celebrate(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const container=$('#confetti-container');for(let i=0;i<45;i++){const piece=document.createElement('i');piece.className='confetti';piece.style.cssText=`left:${Math.random()*100}%;background:${colors[i%colors.length]};--drift:${Math.random()*180-90}px;animation-delay:${Math.random()*.5}s;`;container.append(piece);setTimeout(()=>piece.remove(),3500);}}
-$('#habit-list').addEventListener('click',event=>{const edit=event.target.closest('[data-edit]');if(edit){openModal(edit.dataset.edit);return;}const button=event.target.closest('[data-habit]');if(!button||button.disabled)return;const habit=state.habits.find(h=>h.id===button.dataset.habit);if(!habit)return;const key=button.dataset.date,wasDone=habit.logs.includes(key);habit.logs=wasDone?habit.logs.filter(d=>d!==key):[...habit.logs,key];const saved=save();render();const fresh=[...document.querySelectorAll('[data-habit]')].find(b=>b.dataset.habit===habit.id&&b.dataset.date===key);fresh?.focus({preventScroll:true});if(!wasDone){fresh?.classList.add('popped');if(totalForDay(today)===state.habits.length&&key===todayKey){celebrate();if(saved)toast('Идеальный день! Все привычки выполнены ✨');}else if(saved)toast('Маленький шаг — большая победа ✨');}});
+$('#habit-list').addEventListener('click',async event=>{
+  if(!ready||saving)return;
+  const edit=event.target.closest('[data-edit]');
+  if(edit){openModal(edit.dataset.edit);return;}
+  const button=event.target.closest('[data-habit]');
+  if(!button||button.disabled)return;
+  const habit=state.habits.find(h=>h.id===button.dataset.habit);if(!habit)return;
+  const key=button.dataset.date,wasDone=habit.logs.includes(key);
+  const saved=await persist(`/api/habits/${encodeURIComponent(habit.id)}/days/${key}`,'PUT',{completed:!wasDone});
+  if(!saved)return;
+  const fresh=[...document.querySelectorAll('[data-habit]')].find(b=>b.dataset.habit===habit.id&&b.dataset.date===key);
+  fresh?.focus({preventScroll:true});
+  if(!wasDone){
+    fresh?.classList.add('popped');
+    if(totalForDay(today)===state.habits.length&&key===todayKey){celebrate();toast('Идеальный день! Все привычки выполнены ✨');}
+    else toast('Маленький шаг — большая победа ✨');
+  }
+});
 function setView(next){view=next;document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===next);b.setAttribute('aria-current',b.dataset.view===next?'page':'false');});const names={dashboard:'Обзор',habits:'Мои привычки',analytics:'Статистика',achievements:'Достижения'};$('#breadcrumb-current').textContent=names[next];$('#page-title').innerHTML=({dashboard:'Хороший день, чтобы стать лучше',habits:'Маленькие ритуалы, большие перемены',analytics:'Каждый шаг имеет значение',achievements:'Тебе есть чем гордиться'}[next])+'<span class="heading-spark">✳</span>';$('#page-subtitle').textContent=({dashboard:'Не нужно быть идеальным. Просто будь немного лучше, чем вчера.',habits:'Отмечай выполненное, редактируй привычки и находи свой ритм.',analytics:'Твой прогресс в цифрах. Замечай то, что уже получилось.',achievements:'Каждая победа начинается с простого решения продолжать.'}[next]);$('#dashboard-view').hidden=next==='achievements';$('#achievements-view').hidden=next!=='achievements';document.body.classList.toggle('analytics-mode',next==='analytics');document.body.classList.toggle('habits-mode',next==='habits');$('.date-row').hidden=next==='achievements';}
 document.querySelectorAll('[data-view]').forEach(b=>{b.setAttribute('aria-label',b.textContent.replace(/NEW|6/g,'').trim());b.addEventListener('click',()=>setView(b.dataset.view));});
 $('.brand').addEventListener('click',e=>{e.preventDefault();setView('dashboard');});
@@ -98,7 +168,26 @@ $('#all-habits').addEventListener('click',()=>setView('habits'));
 document.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{period=b.dataset.period;document.querySelectorAll('[data-period]').forEach(el=>{el.classList.toggle('selected',el===b);el.setAttribute('aria-pressed',el===b);});renderStats();renderChart();}));
 $('#activity-habit').addEventListener('change',renderHeatmap);
 function renderPickers(){$('#emoji-picker').innerHTML=emojis.map(e=>`<button type="button" class="emoji-option ${e===selectedEmoji?'selected':''}" data-emoji="${e}" aria-label="Значок ${e}" aria-pressed="${e===selectedEmoji}">${e}</button>`).join('');$('#color-picker').innerHTML=colors.map((c,i)=>`<button type="button" class="color-option ${c===selectedColor?'selected':''}" style="--color:${c}" data-color="${c}" aria-label="${['Фиолетовый','Зелёный','Золотистый','Голубой','Розовый','Бирюзовый'][i]}" aria-pressed="${c===selectedColor}"></button>`).join('');}
-function openModal(id=null){editingId=id;const habit=state.habits.find(h=>h.id===id);$('#habit-form').reset();$('#habit-name').setCustomValidity('');selectedEmoji=habit?.emoji||emojis[0];selectedColor=habit?.color||colors[state.habits.length%colors.length];$('#habit-name').value=habit?.name||'';$('#habit-category').value=habit?.category||'Здоровье';$('#modal-title').textContent=habit?'Твоя привычка, твои правила':'Большое начинается с малого';$('#save-habit').innerHTML=icon(habit?'check':'plus')+(habit?'Сохранить':'Добавить привычку');$('.delete-habit')?.remove();if(habit){const btn=document.createElement('button');btn.type='button';btn.className='delete-habit';btn.textContent='Удалить';btn.addEventListener('click',()=>{if(!confirm(`Удалить привычку «${habit.name}» и её историю?`))return;state.habits=state.habits.filter(h=>h.id!==id);const saved=save();render();$('#habit-dialog').close();if(saved)toast('Привычка удалена');});$('.modal-actions').prepend(btn);}renderPickers();$('#habit-dialog').showModal();setTimeout(()=>$('#habit-name').focus(),50);}
+function openModal(id=null){
+  if(!ready||saving)return;
+  editingId=id;const habit=state.habits.find(h=>h.id===id);
+  $('#habit-form').reset();$('#habit-name').setCustomValidity('');
+  selectedEmoji=habit?.emoji||emojis[0];selectedColor=habit?.color||colors[state.habits.length%colors.length];
+  $('#habit-name').value=habit?.name||'';$('#habit-category').value=habit?.category||'Здоровье';
+  $('#modal-title').textContent=habit?'Твоя привычка, твои правила':'Большое начинается с малого';
+  $('#save-habit').innerHTML=icon(habit?'check':'plus')+(habit?'Сохранить':'Добавить привычку');
+  $('.delete-habit')?.remove();
+  if(habit){
+    const btn=document.createElement('button');btn.type='button';btn.className='delete-habit';btn.textContent='Удалить';
+    btn.addEventListener('click',async ()=>{
+      if(saving||!confirm(`Удалить привычку «${habit.name}» и её историю?`))return;
+      const saved=await persist(`/api/habits/${encodeURIComponent(id)}`,'DELETE',{});
+      if(saved){$('#habit-dialog').close();toast('Привычка удалена');}
+    });
+    $('.modal-actions').prepend(btn);
+  }
+  renderPickers();$('#habit-dialog').showModal();setTimeout(()=>$('#habit-name').focus(),50);
+}
 ['#add-habit','#add-inline'].forEach(id=>$(id).addEventListener('click',()=>openModal()));
 $('#add-habit').setAttribute('aria-label','Добавить новую привычку');
 $('#habit-dialog').setAttribute('aria-labelledby','modal-title');
@@ -106,10 +195,19 @@ $('#habit-dialog').setAttribute('aria-labelledby','modal-title');
 $('#habit-dialog').addEventListener('click',e=>{if(e.target===$('#habit-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
 $('#emoji-picker').addEventListener('click',e=>{const b=e.target.closest('[data-emoji]');if(b){selectedEmoji=b.dataset.emoji;renderPickers();[...document.querySelectorAll('[data-emoji]')].find(el=>el.dataset.emoji===selectedEmoji)?.focus();}});
 $('#color-picker').addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(b){selectedColor=b.dataset.color;renderPickers();[...document.querySelectorAll('[data-color]')].find(el=>el.dataset.color===selectedColor)?.focus();}});
-$('#habit-form').addEventListener('submit',e=>{e.preventDefault();const name=$('#habit-name').value.trim();if(!name){$('#habit-name').setCustomValidity('Введи название привычки');$('#habit-name').reportValidity();return;}const details={name,category:$('#habit-category').value,emoji:selectedEmoji,color:selectedColor};if(editingId){const h=state.habits.find(h=>h.id===editingId);if(h)Object.assign(h,details);}else state.habits.push({id:globalThis.crypto?.randomUUID?.()||`habit-${Date.now()}-${Math.random().toString(36).slice(2)}`,...details,createdAt:todayKey,logs:[]});const saved=save();render();$('#habit-dialog').close();if(saved)toast(editingId?'Привычка обновлена':'Новая привычка — новое начало 🌱');});
+$('#habit-form').addEventListener('submit',async e=>{
+  e.preventDefault();if(!ready||saving)return;
+  const name=$('#habit-name').value.trim();
+  if(!name){$('#habit-name').setCustomValidity('Введи название привычки');$('#habit-name').reportValidity();return;}
+  const details={name,category:$('#habit-category').value,emoji:selectedEmoji,color:selectedColor};
+  const id=editingId;
+  const payload=id?details:{id:globalThis.crypto?.randomUUID?.()||`habit-${Date.now()}-${Math.random().toString(36).slice(2)}`,...details};
+  const saved=await persist(id?`/api/habits/${encodeURIComponent(id)}`:'/api/habits',id?'PATCH':'POST',payload);
+  if(saved){$('#habit-dialog').close();toast(id?'Привычка обновлена':'Новая привычка — новое начало 🌱');}
+});
 $('#habit-name').addEventListener('input',()=>$('#habit-name').setCustomValidity(''));
 $('#notification-button').addEventListener('click',()=>toast('Твой ритм важнее чужой скорости. Начни с одного шага 🌿'));
-$('#profile-button').addEventListener('click',()=>toast('Это твоё личное пространство. Привычки сохраняются в этом браузере ♡'));
-window.addEventListener('storage',e=>{if(e.key==='ritmo-v1')toast('Привычки изменились в другой вкладке. Обнови страницу, чтобы увидеть изменения.');});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){const now=new Date();now.setHours(0,0,0,0);if(dateKey(now)!==todayKey){today=now;todayKey=dateKey(today);weekStart=shiftDate(today,-((today.getDay()+6)%7));week=Array.from({length:7},(_,i)=>shiftDate(weekStart,i));render();}}});
-render();if(!storageAvailable)toast('Хранилище браузера недоступно. Прогресс сохранится только до закрытия страницы.');
+$('#profile-button').addEventListener('click',()=>toast('Это твоё личное пространство. Привычки и прогресс сохраняются в базе данных ♡'));
+window.addEventListener('focus',refreshStorage);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){const now=new Date();now.setHours(0,0,0,0);if(dateKey(now)!==todayKey){today=now;todayKey=dateKey(today);weekStart=shiftDate(today,-((today.getDay()+6)%7));week=Array.from({length:7},(_,i)=>shiftDate(weekStart,i));render();}refreshStorage();}});
+render();connectStorage();

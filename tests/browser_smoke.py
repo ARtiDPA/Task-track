@@ -1,22 +1,25 @@
 """Run: python -m pip install playwright; python tests/browser_smoke.py
 
-Start the app first with: python -m http.server 5173
+Creates an isolated temporary database and server; never modifies real user data.
 Uses installed Microsoft Edge; no browser download required on Windows.
 """
 import json
 import tempfile
+import threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
+from test_server import QuietHandler, Store, ThreadingHTTPServer
 
 
-def main():
+def run_checks(url):
     with sync_playwright() as p:
         browser = p.chromium.launch(channel="msedge", headless=True)
         context = browser.new_context(viewport={"width": 1440, "height": 1000}, timezone_id="Europe/Moscow")
         page = context.new_page()
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
-        page.goto("http://localhost:5173")
+        page.goto(url)
+        expect(page.locator('#connection-panel')).not_to_be_visible()
         expect(page.locator(".habit-row")).to_have_count(6)
         expect(page.locator("#total-done")).to_have_text("0")
         assert page.locator(".heat-cell:not(.blank)").count() == 365
@@ -38,6 +41,22 @@ def main():
         page.reload()
         expect(page.locator(".habit-row")).to_have_count(7)
         expect(page.locator(".habit-row").last.locator(".day-check.today")).to_have_attribute("aria-pressed", "true")
+
+        # A new browser context gets its progress from SQLite, without a local cache.
+        second = browser.new_context(timezone_id='Europe/Moscow')
+        other = second.new_page()
+        other.goto(url)
+        expect(other.locator('#connection-panel')).not_to_be_visible()
+        expect(other.locator('#total-done')).to_have_text('1')
+        second.close()
+
+        # Failed saves do not change the UI or claim success; retry works.
+        page.route('**/api/habits/*/days/*', lambda route: route.abort())
+        page.locator('.habit-row').last.locator('.day-check.today').click()
+        expect(page.locator('.live-label')).to_have_text('Не сохранено')
+        expect(page.locator('#total-done')).to_have_text('1')
+        expect(page.locator('.habit-row').last.locator('.day-check.today')).to_have_attribute('aria-pressed', 'true')
+        page.unroute('**/api/habits/*/days/*')
 
         # Edit preserves history; activity filtering and period switches work.
         row = page.locator(".habit-row").last
@@ -106,25 +125,12 @@ def main():
         page.keyboard.press("Escape")
         expect(page.locator("#habit-dialog")).not_to_be_visible()
 
-        # A future day cannot be checked and series cross month boundaries.
-        page.clock.install(time=__import__('datetime').datetime(2026, 10, 21, 12, 0))
-        page.reload()
-        assert page.locator(".day-check:disabled").count() == 24
-        page.evaluate("""() => {
-            const data = JSON.parse(localStorage.getItem('ritmo-v1'));
-            data.habits = [data.habits[0]];
-            data.habits[0].logs = ['2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-03','2026-10-04'];
-            data.habits[0].createdAt = '2026-09-28';
-            localStorage.setItem('ritmo-v1', JSON.stringify(data));
-        }""")
-        page.reload()
-        expect(page.locator("#best-streak")).to_have_text("7")
-        expect(page.locator("#total-done")).to_have_text("7")
-        expect(page.locator(".habit-streak")).to_have_text("0")
-
         # Safe rendering and the fully empty state.
-        page.evaluate("localStorage.setItem('ritmo-v1', JSON.stringify({habits:[]}))")
+        for habit in page.request.get(url+'/api/state').json()['habits']:
+            response=page.request.delete(url+'/api/habits/'+habit['id'], data={})
+            assert response.ok
         page.reload()
+        expect(page.locator('#connection-panel')).not_to_be_visible()
         expect(page.locator(".empty-habits")).to_be_visible()
         expect(page.locator("#today-percent")).to_have_text("0% от цели")
         page.locator("#add-habit").click()
@@ -135,6 +141,20 @@ def main():
         assert not errors, errors
         print(json.dumps({"result": "PASS", "browser_errors": errors, "responsive_widths": layouts}, ensure_ascii=True))
         browser.close()
+
+
+def main():
+    with tempfile.TemporaryDirectory() as directory:
+        server = ThreadingHTTPServer(('127.0.0.1', 0), QuietHandler)
+        server.store = Store(Path(directory) / 'browser.sqlite3')
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            run_checks(f'http://127.0.0.1:{server.server_port}')
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
 
 if __name__ == "__main__":

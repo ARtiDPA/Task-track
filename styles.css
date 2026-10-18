@@ -19,3 +19,12 @@
 .chart-svg{overflow:visible}
 @media(max-width:1020px){.chart-svg{height:220px}.chart-summary{margin-top:20px}.chart-note p{font-size:10px}.chart-note>span{display:grid}}
 @media(max-width:520px){.chart-summary{column-gap:12px}.chart-summary>span{font-size:10px}.chart-svg{height:185px}}
+
+.connection-panel{position:fixed;inset:0;background:#f7f8fcf5;backdrop-filter:blur(8px);z-index:90;display:grid;place-items:center;padding:24px}
+.connection-card{width:420px;max-width:100%;padding:38px 28px;text-align:center;border:1px solid var(--border);border-radius:22px;background:white;box-shadow:0 20px 80px #5f407510}
+.connection-symbol{display:inline-block;font-size:48px;color:var(--purple);animation:gentle-turn 12s linear infinite}
+.connection-symbol.connection-error{animation:none;color:#cc9f71}
+.connection-card h2{font-size:20px;letter-spacing:-.5px;margin-top:20px}
+.connection-card p{font-size:12px;line-height:1.9;color:#9484a2;margin:12px 0 24px}
+.save-error{color:#b97884}.save-error i{background:#c88d98}
+button:disabled:not(.day-check){cursor:wait;opacity:.65}
