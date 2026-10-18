@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="finance.css">
   <link rel="stylesheet" href="organizer.css">
   <link rel="stylesheet" href="relationships.css">
+  <link rel="stylesheet" href="day-tasks.css">
   <script src="metrics.js" defer></script>
   <script src="storage.js" defer></script>
   <script src="emoji-catalog.js" defer></script>
@@ -28,6 +29,7 @@
   <script src="finance.js" defer></script>
   <script src="money-organizer.js" defer></script>
   <script src="planner.js" defer></script>
+  <script src="day-tasks.js" defer></script>
   <script src="calendar.js" defer></script>
   <script src="relationships.js" defer></script>
   <script src="account.js" defer></script>
@@ -43,6 +45,7 @@
         <button class="nav-item" data-view="habits"><span data-icon="layers"></span>Мои привычки<span class="nav-count" id="habit-count">6</span></button>
         <button class="nav-item" data-view="analytics"><span data-icon="chart"></span>Статистика</button>
         <button class="nav-item" data-view="finance"><span data-icon="wallet"></span>Финансы</button>
+        <button class="nav-item" data-view="tasks"><span data-icon="check-circle"></span>План дня</button>
         <button class="nav-item" data-view="calendar"><span data-icon="calendar"></span>Календарь</button>
         <button class="nav-item" data-view="relationships"><span data-icon="heart"></span>Личная жизнь</button>
         <button class="nav-item" data-view="water"><span data-water-icon="drop"></span>Трекер воды</button>
@@ -69,6 +72,7 @@
           <section class="card activity-card"><div class="section-header"><div><h2>Год маленьких побед <span class="activity-emoji">✦</span></h2><p><strong id="year-total">0 выполнений</strong> за последний год. Каждая клетка — часть твоей истории.</p></div><div class="activity-controls"><select id="activity-habit" aria-label="Привычка для карты активности"><option value="all">Все привычки</option></select><span class="year-badge" id="activity-year"></span></div></div><div class="heatmap-scroll"><div id="heatmap"></div></div><div class="activity-footer"><span><span class="activity-dot"></span>Маленькие действия складываются в большие изменения.</span><div class="heat-legend">Меньше <i></i><i></i><i></i><i></i><i></i> Больше</div></div></section>
           <section class="bottom-grid"><article class="quote-card"><div class="quote-symbol">“</div><div><p>Ты — это то, что ты делаешь каждый день.</p><span>Создавай привычки. Создавай себя.</span></div><span class="quote-art">✳</span></article><article class="next-card"><div class="next-icon" data-icon="target"></div><div><strong id="next-title">Твоя следующая победа</strong><p id="next-description">Выполни первую привычку сегодня</p></div><span data-icon="arrow-right"></span></article></section>
         </div>
+        <section id="tasks-view" hidden></section>
         <section id="relationships-view" hidden></section>
         <section id="achievements-view" class="achievements-grid" hidden></section>
 
@@ -145,7 +149,7 @@
           </div>
 </section>
 
-        <section class="calendar-view" id="calendar-view" hidden><div class="org-section-heading"><div><h2>Всё важное — в своём дне</h2><p>Твои события, планы по деньгам и ближайшие платежи. Всего в этом месяце: <span id="calendar-month-count">0</span>.</p></div><button id="calendar-add" class="button button-primary">＋ Добавить событие</button></div><div class="calendar-layout"><article class="card calendar-month-card"><div class="calendar-month-toolbar"><h2 id="calendar-month-title"></h2><div class="calendar-month-controls"><button data-calendar-shift="-1" aria-label="Предыдущий месяц">←</button><button id="calendar-today">Сегодня</button><button data-calendar-shift="1" aria-label="Следующий месяц">→</button></div></div><div class="calendar-weekdays"><span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span><span>ПТ</span><span>СБ</span><span>ВС</span></div><div class="calendar-grid" id="calendar-grid"></div><div class="calendar-key"><span><i></i>Событие</span><span><i class="income"></i>Доход</span><span><i class="expense"></i>Расход / платёж</span></div></article><article class="card calendar-agenda-card"><div class="calendar-agenda-head"><div><h3 id="calendar-selected-title"></h3><p id="calendar-day-count"></p></div><button id="calendar-add-selected" aria-label="Добавить событие в выбранный день">＋</button></div><div class="calendar-money-actions"><button class="button" data-new-plan="income">＋ Доход в этот день</button><button class="button" data-new-plan="expense">＋ Платёж в этот день</button></div><div id="calendar-agenda"></div></article></div></section>
+        <section class="calendar-view" id="calendar-view" hidden><div class="org-section-heading"><div><h2>Всё важное — в своём дне</h2><p>Твои события, планы по деньгам и ближайшие платежи. Всего в этом месяце: <span id="calendar-month-count">0</span>.</p></div><button id="calendar-add" class="button button-primary">＋ Добавить событие</button></div><div class="calendar-layout"><article class="card calendar-month-card"><div class="calendar-month-toolbar"><h2 id="calendar-month-title"></h2><div class="calendar-month-controls"><button data-calendar-shift="-1" aria-label="Предыдущий месяц">←</button><button id="calendar-today">Сегодня</button><button data-calendar-shift="1" aria-label="Следующий месяц">→</button></div></div><div class="calendar-weekdays"><span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span><span>ПТ</span><span>СБ</span><span>ВС</span></div><div class="calendar-grid" id="calendar-grid"></div><div class="calendar-key"><span><i></i>Событие</span><span><i class="income"></i>Доход</span><span><i class="expense"></i>Расход / платёж</span></div></article><article class="card calendar-agenda-card"><div class="calendar-agenda-head"><div><h3 id="calendar-selected-title"></h3><p id="calendar-day-count"></p></div><button id="calendar-add-selected" aria-label="Добавить событие в выбранный день">＋</button></div><div class="calendar-money-actions"><button class="button" data-new-plan="income">＋ Доход в этот день</button><button class="button" data-new-plan="expense">＋ Платёж в этот день</button></div><div class="task-calendar-controls"><button class="button" id="calendar-add-task">＋ Задача на этот день</button><button id="calendar-open-planner">План дня ↗</button></div><div id="calendar-task-summary"></div><div id="calendar-agenda"></div></article></div></section>
         <footer class="page-footer"><span class="footer-logo">ritmo.</span><span>В твоём ритме. Каждый день.</span><span>Сделано с заботой о тебе <span class="footer-heart">♡</span></span></footer>
       </main>
     </div>
