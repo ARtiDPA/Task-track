@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlsplit
 
 import redis
 import hydration
+import finance
 from auth import Auth, AuthError, SESSION_SECONDS, email_value, password_value, hash_password, verify_password, load_secret
 
 ROOT = Path(__file__).resolve().parent
@@ -94,7 +95,8 @@ class Store:
                 PRAGMA user_version=2;
             ''')
             hydration.initialize(db)
-            db.execute('PRAGMA user_version=3')
+            finance.initialize(db)
+            db.execute('PRAGMA user_version=4')
 
     @contextmanager
     def connect(self):
@@ -129,7 +131,7 @@ class Store:
                                logs=logs.get(row['id'], [])))
         user = self.user(db, user_id)
         initialized = bool(db.execute('SELECT initialized FROM users WHERE id=?', (user_id,)).fetchone()[0])
-        return {'user': user, 'habits': habits, 'initialized': initialized, 'water': hydration.state(db,user_id,today())}
+        return {'user': user, 'habits': habits, 'initialized': initialized, 'water': hydration.state(db,user_id,today()), 'finance':finance.state(db,user_id)}
 
     def insert_habit(self, db, user_id, data, position, importing=False):
         habit_id = text_value(data, 'id', 100)
@@ -256,7 +258,20 @@ class Handler(BaseHTTPRequestHandler):
             with store.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
                 store.user(db, user_id)
-                if self.command == 'PUT' and path == '/api/water/settings':
+                if self.command=='PUT' and path=='/api/finance/settings':
+                    finance.settings(db,user_id,data)
+                elif self.command=='POST' and path=='/api/finance/categories':
+                    finance.category(db,user_id,data)
+                elif self.command=='PUT' and len(parts)==5 and parts[:3]==['api','finance','categories'] and parts[4]=='budget':
+                    if not finance.budget(db,user_id,parts[3],data):
+                        self.send_json(404,{'error':'Категория не найдена.'});return
+                elif self.command=='POST' and path=='/api/finance/transactions':
+                    finance.transaction(db,user_id,data,today())
+                elif len(parts)==4 and parts[:3]==['api','finance','transactions'] and self.command in ('PATCH','DELETE'):
+                    changed=finance.transaction(db,user_id,data,today(),parts[3]) if self.command=='PATCH' else finance.remove(db,user_id,parts[3])
+                    if not changed:
+                        self.send_json(404,{'error':'Операция не найдена.'});return
+                elif self.command == 'PUT' and path == '/api/water/settings':
                     hydration.settings(db,user_id,data,today())
                 elif self.command == 'POST' and path == '/api/water/entries':
                     hydration.add(db,user_id,data,today())
@@ -364,6 +379,7 @@ class Handler(BaseHTTPRequestHandler):
                 claim = data.get('importLegacy') is True and store.legacy_available(db)
                 db.execute('INSERT INTO users VALUES (?,?,?,?,?,?)',
                            (user_id, email, name, password_hash, datetime.now(timezone.utc).isoformat(), int(claim)))
+                finance.seed(db,user_id)
                 if claim:
                     db.execute('INSERT INTO profile_habits SELECT ?,id,name,category,emoji,color,created_at,position FROM habits', (user_id,))
                     db.execute('INSERT INTO profile_days SELECT ?,habit_id,day,completed FROM habit_days', (user_id,))
