@@ -16,6 +16,7 @@ from urllib.parse import unquote, urlsplit
 import redis
 import hydration
 import finance
+import organizer
 from auth import Auth, AuthError, SESSION_SECONDS, email_value, password_value, hash_password, verify_password, load_secret
 
 ROOT = Path(__file__).resolve().parent
@@ -96,7 +97,8 @@ class Store:
             ''')
             hydration.initialize(db)
             finance.initialize(db)
-            db.execute('PRAGMA user_version=4')
+            organizer.initialize(db)
+            db.execute('PRAGMA user_version=5')
 
     @contextmanager
     def connect(self):
@@ -131,7 +133,11 @@ class Store:
                                logs=logs.get(row['id'], [])))
         user = self.user(db, user_id)
         initialized = bool(db.execute('SELECT initialized FROM users WHERE id=?', (user_id,)).fetchone()[0])
-        return {'user': user, 'habits': habits, 'initialized': initialized, 'water': hydration.state(db,user_id,today()), 'finance':finance.state(db,user_id)}
+        extras=organizer.state(db,user_id)
+        ledger=finance.state(db,user_id)
+        ledger['reservedKopecks']=extras['reservedKopecks']
+        ledger['freeBalanceKopecks']=ledger['balanceKopecks']-extras['reservedKopecks']
+        return {'user': user, 'habits': habits, 'initialized': initialized, 'water': hydration.state(db,user_id,today()), 'finance':ledger,'organizer':extras}
 
     def insert_habit(self, db, user_id, data, position, importing=False):
         habit_id = text_value(data, 'id', 100)
@@ -258,7 +264,10 @@ class Handler(BaseHTTPRequestHandler):
             with store.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
                 store.user(db, user_id)
-                if self.command=='PUT' and path=='/api/finance/settings':
+                if parts[:2]==['api','organizer']:
+                    if not organizer.dispatch(db,user_id,parts,self.command,data,today()):
+                        self.send_json(404,{'error':'Запись не найдена.'});return
+                elif self.command=='PUT' and path=='/api/finance/settings':
                     finance.settings(db,user_id,data)
                 elif self.command=='POST' and path=='/api/finance/categories':
                     finance.category(db,user_id,data)

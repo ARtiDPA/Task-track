@@ -35,6 +35,11 @@ def initialize(db):
             FOREIGN KEY(user_id,category_id) REFERENCES finance_categories(user_id,id)
         );
         CREATE INDEX IF NOT EXISTS finance_date_index ON finance_transactions(user_id,day);
+        CREATE TABLE IF NOT EXISTS finance_links (
+            user_id TEXT NOT NULL,transaction_id TEXT NOT NULL,source TEXT NOT NULL,entity_id TEXT NOT NULL,
+            PRIMARY KEY(user_id,transaction_id),
+            FOREIGN KEY(user_id,transaction_id) REFERENCES finance_transactions(user_id,id) ON DELETE CASCADE
+        );
     ''')
     for row in list(db.execute('SELECT id FROM users')):
         seed(db,row['id'])
@@ -112,6 +117,8 @@ def transaction(db,user_id,data,today,editing_id=None):
     old=db.execute('SELECT * FROM finance_transactions WHERE user_id=? AND id=?',(user_id,entry_id)).fetchone()
     if editing_id:
         if not old:return False
+        if db.execute('SELECT 1 FROM finance_links WHERE user_id=? AND transaction_id=?',(user_id,entry_id)).fetchone():
+            raise ValueError('Измени эту операцию в копилке, долге или плане, с которым она связана.')
         db.execute('UPDATE finance_transactions SET day=?,category_id=?,amount=?,note=? WHERE user_id=? AND id=?',
                    (day,category_id,amount,note.strip(),user_id,entry_id))
     elif old:
@@ -126,6 +133,8 @@ def transaction(db,user_id,data,today,editing_id=None):
 
 
 def remove(db,user_id,entry_id):
+    if db.execute('SELECT 1 FROM finance_links WHERE user_id=? AND transaction_id=?',(user_id,entry_id)).fetchone():
+        raise ValueError('Отмени операцию в её копилке, долге или плане.')
     return db.execute('DELETE FROM finance_transactions WHERE user_id=? AND id=?',(user_id,entry_id)).rowcount>0
 
 
@@ -133,9 +142,10 @@ def state(db,user_id):
     settings=db.execute('SELECT * FROM finance_settings WHERE user_id=?',(user_id,)).fetchone()
     categories=[dict(id=row['id'],name=row['name'],kind=row['kind'],emoji=row['emoji'],color=row['color'],budgetKopecks=row['budget'])
                 for row in db.execute('SELECT * FROM finance_categories WHERE user_id=? ORDER BY rowid',(user_id,))]
-    transactions=[dict(id=row['id'],day=row['day'],categoryId=row['category_id'],kind=row['kind'],amountKopecks=row['amount'],note=row['note'])
-                  for row in db.execute('''SELECT t.*,c.kind FROM finance_transactions t JOIN finance_categories c
+    transactions=[dict(id=row['id'],day=row['day'],categoryId=row['category_id'],kind=row['kind'],amountKopecks=row['amount'],note=row['note'],source=row['source'],entityId=row['entity_id'])
+                  for row in db.execute('''SELECT t.*,c.kind,l.source,l.entity_id FROM finance_transactions t JOIN finance_categories c
                                            ON c.user_id=t.user_id AND c.id=t.category_id
+                                           LEFT JOIN finance_links l ON l.user_id=t.user_id AND l.transaction_id=t.id
                                            WHERE t.user_id=? ORDER BY t.day DESC,t.created_at DESC,t.id''',(user_id,))]
     income=sum(row['amountKopecks'] for row in transactions if row['kind']=='income')
     expenses=sum(row['amountKopecks'] for row in transactions if row['kind']=='expense')
