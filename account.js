@@ -16,6 +16,9 @@ function setAuthMode(mode){
 }
 async function showAuth(){
   ready=false;stateRevision++;currentUser=null;state={habits:[]};render();
+  document.querySelectorAll('.workspace-avatar,.profile-avatar,.top-avatar').forEach(el=>el.textContent='Я');
+  $('#profile-button strong').textContent='Личный профиль';$('#profile-button small').textContent='Твой путь к лучшей версии';
+  $('#account-name').textContent='Мой профиль';$('#account-email').textContent='';
   document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());
   $('#connection-panel').hidden=true;$('#auth-screen').hidden=false;
   $('.app-shell').inert=true;document.body.classList.add('auth-open');

@@ -6,3 +6,5 @@
 @media(max-width:850px){.auth-story{padding:45px 10%}.auth-story .brand{margin-bottom:40px}.auth-story h1{font-size:36px}.auth-form-wrap{padding:40px 8%}.auth-preview{gap:4px}.auth-preview i{height:11px}}
 @media(max-width:600px){.auth-screen{grid-template-columns:1fr}.auth-story{padding:28px 25px 23px;min-height:auto}.auth-story .brand{font-size:28px;margin:0 0 22px;justify-content:flex-start;gap:9px}.auth-story .brand-dot{display:inline}.auth-story .brand-mark{margin-right:0}.auth-story h1{font-size:30px;letter-spacing:-1px;margin:12px 0 0}.auth-story>p{font-size:11px;line-height:1.8;margin:10px 0 0}.auth-kicker{font-size:8px}.auth-preview,.auth-story-footer{display:none}.auth-form-wrap{padding:27px 25px 35px}.auth-form-card{max-width:420px}.auth-mode-switch{margin-bottom:25px}.auth-form-card h2{font-size:25px}.auth-intro{font-size:11px;margin-bottom:20px}.auth-form-card label{font-size:11px}.auth-privacy{margin-top:15px}.account-dialog{padding:30px 22px}}
 @media(prefers-reduced-motion:reduce){.auth-preview i{animation:none}}
+.sidebar{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#e5dbee transparent}
+@media(max-width:600px){.auth-screen{display:block}}
