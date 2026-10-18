@@ -20,7 +20,7 @@ class AchievementTests(unittest.TestCase):
 
     def test_empty_profile_has_no_fake_achievements(self):
         items=self.evaluate([])
-        self.assertEqual(len(items),24)
+        self.assertEqual(len(items),28)
         self.assertTrue(all(not item['unlocked'] for item in items.values()))
 
     def test_streaks_and_progress_are_real(self):

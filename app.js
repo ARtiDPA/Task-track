@@ -114,7 +114,7 @@ function totalForDay(date, habits=state.habits){const key=dateKey(date);return R
 function percentage(date){return RitmoMetrics.rate(state.habits,[dateKey(date)]);}
 function plural(n,forms){return forms[n%10===1&&n%100!==11?0:n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?1:2];}
 function toast(message){$('#toast-text').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),3500);}
-function render(){renderDates();renderHabits();renderStats();renderChart();renderActivityOptions();renderHeatmap();renderAchievements();if(typeof renderAccount==='function')renderAccount();}
+function render(){renderDates();renderHabits();renderStats();renderChart();renderActivityOptions();renderHeatmap();renderAchievements();if(typeof renderWater==='function')renderWater();if(typeof renderAccount==='function')renderAccount();}
 function renderHabits(){
   $('#habit-count').textContent=state.habits.length;$('#habits-badge').textContent=state.habits.length;
   $('#habit-list').innerHTML=state.habits.length?state.habits.map((h,index)=>`<div class="habit-row" style="--habit-color:${h.color};animation-delay:${index*.035}s"><div class="habit-info"><span class="habit-emoji">${h.emoji}</span><div class="habit-detail"><div class="habit-name" title="${escapeHTML(h.name)}">${escapeHTML(h.name)}</div><span class="habit-category">${escapeHTML(h.category)}</span></div></div><div class="habit-week">${week.map((d,i)=>{const key=dateKey(d),done=h.logs.includes(key),future=d>today,notStarted=key<h.createdAt;return `<button class="day-check ${done?'done':''} ${key===todayKey?'today':''}" data-day="${dayNames[i]}" data-habit="${escapeHTML(h.id)}" data-date="${key}" ${future||notStarted?'disabled':''} aria-pressed="${done}" aria-label="${escapeHTML(h.name)}, ${d.toLocaleDateString('ru-RU')}${done?', выполнено':''}" title="${d.toLocaleDateString('ru-RU')}${future?' — ещё впереди':notStarted?' — до создания привычки':''}">${done?icon('check'):'<span>·</span>'}</button>`;}).join('')}</div><div class="habit-streak" title="Текущая серия">${icon('flame')}${streak(h)}</div><button class="habit-edit" data-edit="${escapeHTML(h.id)}" aria-label="Изменить привычку ${escapeHTML(h.name)}">${icon('edit')}</button></div>`).join(''):'<div class="empty-habits">Пока здесь чистый лист 🌱<br>Добавь первую привычку и начни свою историю.</div>';
@@ -146,7 +146,7 @@ function renderHeatmap(){
 }
 let achievementFilter='all';
 function renderAchievements(){
-  const items=RitmoAchievements.evaluate(state.habits),unlocked=items.filter(item=>item.unlocked).length;
+  const items=RitmoAchievements.evaluate(state.habits,state.water),unlocked=items.filter(item=>item.unlocked).length;
   const filtered=items.filter(item=>achievementFilter==='all'||(achievementFilter==='unlocked'?item.unlocked:!item.unlocked));
   const heading=`<div class="achievement-overview"><div><h2>Коллекция твоих побед</h2><p>Получено <strong>${unlocked} из ${items.length}</strong> достижений. Прогресс считается по твоей истории.</p></div><div class="achievement-filters">${[['all','Все'],['unlocked','Получены'],['pending','Впереди']].map(([id,label])=>`<button data-achievement-filter="${id}" class="${achievementFilter===id?'selected':''}" aria-pressed="${achievementFilter===id}">${label}</button>`).join('')}</div></div>`;
   $('#achievements-view').innerHTML=heading+(filtered.length?filtered.map((item,index)=>`<article class="card achievement ${item.unlocked?'':'locked'}" data-achievement="${item.id}" style="animation-delay:${Math.min(index,8)*.025}s"><span class="achievement-category">${item.category}</span><span class="achievement-symbol">${item.emoji}</span><h2>${item.name}</h2><p>${item.description}</p><progress class="achievement-progress" value="${Math.min(item.value,item.target)}" max="${item.target}" aria-label="${item.name}: ${Math.min(item.value,item.target)} из ${item.target}"></progress><div class="achievement-numbers"><span>${Math.min(item.value,item.target)} / ${item.target} ${item.unit}</span><span>${item.percent}%</span></div><span class="achievement-status">${item.unlocked?'✓ Достижение получено':'Ещё впереди'}</span></article>`).join(''):'<div class="card achievement-empty">Здесь скоро появятся твои победы 🌱<br>Начни с одной привычки сегодня.</div>');
@@ -175,7 +175,20 @@ $('#habit-list').addEventListener('click',async event=>{
     else toast('Маленький шаг — большая победа ✨');
   }
 });
-function setView(next){view=next;document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===next);b.setAttribute('aria-current',b.dataset.view===next?'page':'false');});const names={dashboard:'Обзор',habits:'Мои привычки',analytics:'Статистика',achievements:'Достижения'};$('#breadcrumb-current').textContent=names[next];$('#page-title').innerHTML=({dashboard:'Хороший день, чтобы стать лучше',habits:'Маленькие ритуалы, большие перемены',analytics:'Каждый шаг имеет значение',achievements:'Тебе есть чем гордиться'}[next])+'<span class="heading-spark">✳</span>';$('#page-subtitle').textContent=({dashboard:'Не нужно быть идеальным. Просто будь немного лучше, чем вчера.',habits:'Отмечай выполненное, редактируй привычки и находи свой ритм.',analytics:'Твой прогресс в цифрах. Замечай то, что уже получилось.',achievements:'Каждая победа начинается с простого решения продолжать.'}[next]);$('#dashboard-view').hidden=next==='achievements';$('#achievements-view').hidden=next!=='achievements';document.body.classList.toggle('analytics-mode',next==='analytics');document.body.classList.toggle('habits-mode',next==='habits');$('.date-row').hidden=next==='achievements';}
+function setView(next){
+  view=next;
+  document.querySelectorAll('[data-view]').forEach(button=>{button.classList.toggle('active',button.dataset.view===next);button.setAttribute('aria-current',button.dataset.view===next?'page':'false');});
+  const names={dashboard:'Обзор',habits:'Мои привычки',analytics:'Статистика',achievements:'Достижения',water:'Трекер воды'};
+  $('#breadcrumb-current').textContent=names[next];
+  const titles={dashboard:'Хороший день, чтобы стать лучше',habits:'Маленькие ритуалы, большие перемены',analytics:'Каждый шаг имеет значение',achievements:'Тебе есть чем гордиться',water:'Забота о себе начинается с глотка'};
+  $('#page-title').innerHTML=titles[next]+'<span class="heading-spark">✳</span>';
+  $('#page-subtitle').textContent={dashboard:'Не нужно быть идеальным. Просто будь немного лучше, чем вчера.',habits:'Отмечай выполненное, редактируй привычки и находи свой ритм.',analytics:'Твой прогресс в цифрах. Замечай то, что уже получилось.',achievements:'Каждая победа начинается с простого решения продолжать.',water:'Найди свой водный ритм. Маленькая забота, каждый день.'}[next];
+  $('#dashboard-view').hidden=['achievements','water'].includes(next);
+  $('#achievements-view').hidden=next!=='achievements';$('#water-view').hidden=next!=='water';
+  document.body.classList.toggle('analytics-mode',next==='analytics');document.body.classList.toggle('habits-mode',next==='habits');
+  $('.date-row').hidden=['achievements','water'].includes(next);$('#add-habit').hidden=next==='water';
+}
+
 document.querySelectorAll('[data-view]').forEach(b=>{b.setAttribute('aria-label',b.textContent.replace(/NEW|6/g,'').trim());b.addEventListener('click',()=>setView(b.dataset.view));});
 $('.brand').addEventListener('click',e=>{e.preventDefault();setView('dashboard');});
 $('#all-habits').addEventListener('click',()=>setView('habits'));

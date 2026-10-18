@@ -1,5 +1,5 @@
 globalThis.RitmoAchievements = Object.freeze({
-  evaluate(habits) {
+  evaluate(habits,water) {
     const days=[...new Set(habits.flatMap(h=>h.logs))].sort();
     const total=habits.reduce((sum,h)=>sum+h.logs.length,0);
     let best=0;
@@ -34,6 +34,11 @@ globalThis.RitmoAchievements = Object.freeze({
     add('variety','🎨','Разные грани тебя','Выполни привычки из трёх разных категорий',categories,3,'категорий','Баланс');
     add('focused','🎯','Любимое дело','Выполни одну привычку 50 раз',focused,50,'выполнений','Баланс');
     add('weekends','🌻','Выходные в ритме','Найди время для привычек в два выходных дня',weekends,2,'выходных дня','Баланс');
+    const summary=water?.summary||{entries:0,activeDays:0,goalDays:0};
+    add('water-first','💧','Первый глоток','Отметь первый напиток в трекере воды',summary.entries,1,'записей','Вода');
+    add('water-goal','🌊','Водный ритм','Достигни выбранной дневной цели воды',summary.goalDays,1,'дней с целью','Вода');
+    add('water-week','🍵','Неделя глотков','Отмечай напитки в 7 разных днях',summary.activeDays,7,'активных дней','Вода');
+    add('water-seven','🐳','На одной волне','Достигни дневной цели в 7 разных днях',summary.goalDays,7,'дней с целью','Вода');
     return items;
   }
 });

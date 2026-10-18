@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 import redis
+import hydration
 from auth import Auth, AuthError, SESSION_SECONDS, email_value, password_value, hash_password, verify_password, load_secret
 
 ROOT = Path(__file__).resolve().parent
@@ -92,6 +93,8 @@ class Store:
                 );
                 PRAGMA user_version=2;
             ''')
+            hydration.initialize(db)
+            db.execute('PRAGMA user_version=3')
 
     @contextmanager
     def connect(self):
@@ -126,7 +129,7 @@ class Store:
                                logs=logs.get(row['id'], [])))
         user = self.user(db, user_id)
         initialized = bool(db.execute('SELECT initialized FROM users WHERE id=?', (user_id,)).fetchone()[0])
-        return {'user': user, 'habits': habits, 'initialized': initialized}
+        return {'user': user, 'habits': habits, 'initialized': initialized, 'water': hydration.state(db,user_id,today())}
 
     def insert_habit(self, db, user_id, data, position, importing=False):
         habit_id = text_value(data, 'id', 100)
@@ -226,7 +229,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
             return
-        files = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/metrics.js': 'metrics.js', '/storage.js': 'storage.js', '/emoji-catalog.js': 'emoji-catalog.js', '/styles.css': 'styles.css', '/account.css': 'account.css', '/account.js': 'account.js', '/achievements.js': 'achievements.js', '/achievements.css': 'achievements.css'}
+        files = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/metrics.js': 'metrics.js', '/storage.js': 'storage.js', '/emoji-catalog.js': 'emoji-catalog.js', '/styles.css': 'styles.css', '/account.css': 'account.css', '/account.js': 'account.js', '/achievements.js': 'achievements.js', '/achievements.css': 'achievements.css', '/water.js': 'water.js', '/water.css': 'water.css'}
         if path not in files:
             self.send_json(404, {'error': 'Страница не найдена'})
             return
@@ -253,7 +256,15 @@ class Handler(BaseHTTPRequestHandler):
             with store.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
                 store.user(db, user_id)
-                if self.command == 'POST' and path == '/api/import':
+                if self.command == 'PUT' and path == '/api/water/settings':
+                    hydration.settings(db,user_id,data,today())
+                elif self.command == 'POST' and path == '/api/water/entries':
+                    hydration.add(db,user_id,data,today())
+                elif self.command == 'DELETE' and len(parts)==4 and parts[:3]==['api','water','entries']:
+                    if not hydration.remove(db,user_id,parts[3]):
+                        self.send_json(404,{'error':'Запись не найдена.'})
+                        return
+                elif self.command == 'POST' and path == '/api/import':
                     # Atomic first-run import never replaces an existing database.
                     if not store.state(db, user_id)['initialized']:
                         habits = data.get('habits')

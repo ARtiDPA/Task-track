@@ -21,7 +21,7 @@ class QuietHandler(Handler):
         pass
 
 
-class ApiTests(unittest.TestCase):
+class ServerFixture(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.database = Path(self.directory.name) / 'test.sqlite3'
@@ -70,6 +70,8 @@ class ApiTests(unittest.TestCase):
     def habit(self, **values):
         return dict(id='reading', name='Read', category='Development', emoji='📖', color='#9772db', **values)
 
+
+class ApiTests(ServerFixture):
     def test_full_lifecycle_and_persistence_after_restart(self):
         self.assertFalse(self.request()[1]['initialized'])
         status, state = self.request('/api/habits', 'POST', self.habit())
