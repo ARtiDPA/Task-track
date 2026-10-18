@@ -114,6 +114,7 @@ def main():
             const data = JSON.parse(localStorage.getItem('ritmo-v1'));
             data.habits = [data.habits[0]];
             data.habits[0].logs = ['2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-03','2026-10-04'];
+            data.habits[0].createdAt = '2026-09-28';
             localStorage.setItem('ritmo-v1', JSON.stringify(data));
         }""")
         page.reload()
