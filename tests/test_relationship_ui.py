@@ -1,0 +1,136 @@
+import tempfile
+import unittest
+from pathlib import Path
+from playwright.sync_api import expect
+import test_storage
+
+
+class RelationshipUITests(unittest.TestCase):
+    setUpClass=classmethod(test_storage.StorageTests.setUpClass.__func__)
+    tearDownClass=classmethod(test_storage.StorageTests.tearDownClass.__func__)
+    setUp=test_storage.StorageTests.setUp
+    tearDown=test_storage.StorageTests.tearDown
+    register=test_storage.StorageTests.register
+
+    def open_page(self):
+        self.register();self.page.set_viewport_size(dict(width=1440,height=1000))
+        self.errors=[];self.page.on('pageerror',lambda e:self.errors.append(str(e)))
+        self.page.goto(self.url);self.page.wait_for_function('ready')
+        self.page.locator('[data-view=relationships]').click()
+        expect(self.page.locator('#relationships-view')).to_be_visible()
+        expect(self.page.locator('#dashboard-view')).not_to_be_visible()
+
+    def seed(self,identifier,kind,title,**values):
+        data=dict(id=identifier,kind=kind,title=title,body='',category='',priceKopecks=None,location='',url='',day='',time='',yearly=False,pinned=False,done=False)
+        response=self.page.request.post(self.url+'/api/relationships/entries',headers=self.api_headers,data={**data,**values})
+        self.assertTrue(response.ok,response.text())
+
+    def save_entry(self):
+        self.page.locator('#rel-entry-dialog [type=submit]').click()
+        expect(self.page.locator('#rel-entry-dialog')).not_to_be_visible()
+
+    def test_notes_search_edit_pin_and_profile_switch(self):
+        self.open_page();self.page.locator('#rel-add').click()
+        self.page.locator('#rel-entry-title').fill('Любимые цветы')
+        self.page.locator('#rel-entry-body').fill('Любит белые пионы\nНе любит сильный запах')
+        self.page.locator('#rel-entry-category').fill('Цветы');self.save_entry()
+        expect(self.page.locator('#rel-cards')).to_contain_text('белые пионы')
+        self.page.locator('#rel-search').fill('запах')
+        expect(self.page.locator('#rel-cards .rel-entry')).to_have_count(1)
+        self.page.locator('#rel-search').fill('не найдено')
+        expect(self.page.locator('#rel-cards .rel-entry')).to_have_count(0)
+        self.page.locator('#rel-search').fill('')
+        self.page.locator('[data-rel-pin]').click()
+        expect(self.page.locator('[data-rel-pin]')).to_have_attribute('aria-pressed','true')
+        self.page.locator('[data-rel-edit]').click()
+        self.page.locator('#rel-entry-body').fill('Любит пионы и ромашки');self.save_entry()
+        self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=relationships]').click()
+        expect(self.page.locator('#rel-cards')).to_contain_text('Любит пионы и ромашки')
+        self.page.request.post(self.url+'/api/auth/register',data=dict(email='new@example.com',name='Other',password='other-password'))
+        self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=relationships]').click()
+        expect(self.page.locator('#rel-cards .rel-entry')).to_have_count(0)
+        self.assertEqual(self.errors,[])
+
+    def test_gift_prices_budget_filter_done_and_delete(self):
+        self.open_page();self.page.locator('[data-rel-tab=gift]').click();self.page.locator('#rel-add').click()
+        self.page.locator('#rel-entry-title').fill('Билеты на концерт')
+        self.page.locator('#rel-entry-price').fill('4500,50')
+        self.page.locator('#rel-entry-url').fill('https://example.com/tickets');self.save_entry()
+        expect(self.page.locator('#rel-cards')).to_contain_text('4 500,50')
+        self.seed('unknown','gift','Цена пока неизвестна')
+        self.seed('free','gift','Письмо от руки',priceKopecks=0)
+        self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=relationships]').click();self.page.locator('[data-rel-tab=gift]').click()
+        self.page.locator('#rel-budget-filter').fill('500')
+        expect(self.page.locator('#rel-cards .rel-entry')).to_have_count(1)
+        expect(self.page.locator('#rel-cards')).to_contain_text('Письмо от руки')
+        self.page.locator('#rel-budget-filter').fill('')
+        card=self.page.locator('.rel-entry').filter(has_text='Билеты на концерт')
+        card.locator('[data-rel-done]').click()
+        expect(card).to_contain_text('Подарено')
+        self.page.locator('#rel-status-filter').select_option('done')
+        expect(self.page.locator('#rel-cards .rel-entry')).to_have_count(1)
+        self.page.once('dialog',lambda d:d.accept());self.page.locator('[data-rel-delete]').click()
+        expect(self.page.locator('#rel-cards .rel-entry')).to_have_count(0)
+        result=self.page.request.get(self.url+'/api/state',headers=self.api_headers).json()
+        self.assertEqual(result['finance']['transactions'],[]);self.assertEqual(self.errors,[])
+
+    def test_separate_planner_annual_dates_time_budget_and_mobile_layout(self):
+        self.open_page()
+        self.page.locator('#rel-profile-open').click()
+        self.page.locator('#rel-partner-name').fill('Маша');self.page.locator('#rel-together-day').fill('2024-06-15')
+        self.page.locator('#rel-profile-dialog [type=submit]').click()
+        expect(self.page.locator('#rel-profile-dialog')).not_to_be_visible()
+        expect(self.page.locator('#rel-hero-title')).to_contain_text('Маша')
+        self.page.locator('[data-rel-tab=planner]').click()
+        self.page.evaluate("relMonth='2028-02';relSelectedDay='2028-02-29';renderRelPlanner()")
+        self.page.locator('.rel-day-add [data-rel-new=milestone]').click()
+        expect(self.page.locator('#rel-entry-day')).to_have_value('2028-02-29')
+        self.page.locator('#rel-entry-title').fill('Её день рождения');self.save_entry()
+        self.page.locator('.rel-day-add [data-rel-new=date]').click()
+        self.page.locator('#rel-entry-title').fill('Ужин с видом на город')
+        self.page.locator('#rel-entry-price').fill('5500')
+        self.page.locator('#rel-entry-place').fill('Наш любимый ресторан')
+        self.page.locator('#rel-entry-time').fill('19:30');self.save_entry()
+        expect(self.page.locator('#rel-day-agenda')).to_contain_text('19:30')
+        expect(self.page.locator('#rel-day-budget')).to_contain_text('5 500')
+        self.page.locator('.rel-day-add [data-rel-new=gift]').click()
+        self.page.locator('#rel-entry-title').fill('Пионы и маленький сюрприз');self.save_entry()
+        expect(self.page.locator('#rel-day-budget')).to_contain_text('ещё 1 без цены')
+        rows=self.page.evaluate("relCalendarItems('2029-02-01','2029-03-01')")
+        self.assertEqual([(r['title'],r['occurrenceDay']) for r in rows],[('Её день рождения','2029-02-28')])
+        main_items=self.page.evaluate("calendarItems('2028-02-01','2028-03-01')")
+        self.assertFalse(any(e['title']=='Ужин с видом на город' for e in main_items))
+        self.page.emulate_media(reduced_motion='reduce')
+        self.page.screenshot(path=str(Path(tempfile.gettempdir())/'ritmo-relationships-planner-desktop.png'),full_page=True)
+        self.page.set_viewport_size(dict(width=390,height=844))
+        self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+        self.page.screenshot(path=str(Path(tempfile.gettempdir())/'ritmo-relationships-planner-mobile.png'),full_page=True)
+        self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=relationships]').click()
+        expect(self.page.locator('#rel-hero-title')).to_contain_text('Маша')
+        self.assertEqual(self.errors,[])
+
+    def test_random_date_conversation_care_and_memory(self):
+        self.open_page()
+        self.seed('picnic','date','Пикник на закате',priceKopecks=120000,location='Парк')
+        self.seed('theatre','date','Театр',priceKopecks=700000)
+        self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=relationships]').click()
+        self.page.locator('#rel-surprise-budget').fill('1500');self.page.locator('#rel-surprise-pick').click()
+        expect(self.page.locator('#rel-surprise-text')).to_contain_text('Пикник на закате')
+        self.page.locator('#rel-surprise-plan').click()
+        expect(self.page.locator('#rel-entry-title')).to_have_value('Пикник на закате')
+        self.page.locator('#rel-entry-day').fill('2027-06-15');self.save_entry()
+        self.page.locator('#rel-next-question').click();question=self.page.locator('#rel-question').inner_text()
+        self.page.locator('#rel-save-question').click()
+        expect(self.page.locator('#rel-entry-title')).to_have_value(question)
+        self.page.locator('#rel-entry-body').fill('Хочет снова поехать к морю');self.save_entry()
+        expect(self.page.locator('#rel-cards')).to_contain_text('Хочет снова поехать к морю')
+        self.page.locator('[data-rel-tab=care]').click();self.page.locator('#rel-add').click()
+        self.page.locator('#rel-entry-title').fill('Принести завтрак');self.save_entry()
+        self.page.locator('[data-rel-done]').click();expect(self.page.locator('#rel-cards')).to_contain_text('Сделано')
+        self.page.locator('[data-rel-tab=memory]').click();self.page.locator('#rel-add').click()
+        self.page.locator('#rel-entry-title').fill('Наш первый пикник');self.page.locator('#rel-entry-body').fill('Смеялись весь вечер');self.save_entry()
+        expect(self.page.locator('#rel-cards')).to_contain_text('Наш первый пикник')
+        self.assertEqual(self.errors,[])
+
+
+if __name__=='__main__':unittest.main()
