@@ -121,6 +121,32 @@ class OrganizerTests(ServerFixture):
             self.assertEqual(self.request('/api/organizer/debts','POST',{**payload,field:value})[0],400)
         self.assertEqual(self.request('/api/organizer/debts','POST',payload)[0],200)
 
+    def test_savings_contribution_plan_persists_without_moving_money(self):
+        payload=dict(id='goal',name='Trip',kind='purchase',location='bank',locationName='',targetKopecks=500000,balanceKopecks=0,contributionKopecks=50000,contributionInterval='month',contributionStartDay='2027-01-31')
+        self.assertEqual(self.request('/api/organizer/savings','POST',payload)[0],200)
+        self.stop_server();self.start_server()
+        result=self.request()[1];pot=result['organizer']['savings'][0]
+        self.assertEqual((pot['contributionKopecks'],pot['contributionInterval'],pot['contributionStartDay']),(50000,'month','2027-01-31'))
+        self.assertEqual(result['finance']['balanceKopecks'],100000)
+        self.assertEqual(result['finance']['reservedKopecks'],0)
+        self.assertEqual(result['finance']['transactions'],[])
+        for field,value in [('contributionInterval','year'),('contributionKopecks',-1),('contributionStartDay','2027-02-30'),('contributionStartDay','')]:
+            self.assertEqual(self.request('/api/organizer/savings/goal','PATCH',{**payload,field:value})[0],400)
+        payload['contributionInterval']='week'
+        self.assertEqual(self.request('/api/organizer/savings/goal','PATCH',payload)[0],200)
+
+    def test_old_database_is_migrated_without_losing_pots_or_debts(self):
+        self.pot();self.debt();self.stop_server()
+        with self.server.store.connect() as db:
+            for col in ('monthly_day','monthly_amount'):db.execute('ALTER TABLE debts DROP COLUMN '+col)
+            for col in ('contribution_amount','contribution_interval','contribution_start'):db.execute('ALTER TABLE savings_pots DROP COLUMN '+col)
+        self.start_server()
+        result=self.request()[1]
+        self.assertEqual(result['organizer']['debts'][0]['amountKopecks'],30000)
+        self.assertEqual(result['organizer']['debts'][0]['monthlyDay'],0)
+        self.assertEqual(result['organizer']['savings'][0]['balanceKopecks'],20000)
+        self.assertEqual(result['organizer']['savings'][0]['contributionKopecks'],0)
+
     def test_calendar_events_can_be_edited_and_deleted_with_date_validation(self):
         event=dict(id='meeting',title='Встреча',day='2027-02-28',time='18:30',note='Адрес')
         self.request('/api/organizer/events','POST',event)

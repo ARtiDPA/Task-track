@@ -49,6 +49,9 @@ def initialize(db):
     for column in ('monthly_day','monthly_amount'):
         if column not in [row['name'] for row in db.execute('PRAGMA table_info(debts)')]:
             db.execute(f'ALTER TABLE debts ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0')
+    for column,definition in [('contribution_amount','INTEGER NOT NULL DEFAULT 0'),('contribution_interval',"TEXT NOT NULL DEFAULT 'month'"),('contribution_start',"TEXT NOT NULL DEFAULT ''")]:
+        if column not in [row['name'] for row in db.execute('PRAGMA table_info(savings_pots)')]:
+            db.execute(f'ALTER TABLE savings_pots ADD COLUMN {column} {definition}')
 
 
 def monthly_date(value, anchor, months=0):
@@ -103,17 +106,23 @@ def save_pot(db,user_id,data,entry_id=None):
     name=text(data,'name');kind=data.get('kind');location=data.get('location');place=text(data,'locationName',60,True)
     if kind not in ('purchase','reserve') or location not in ('cash','bank','other'):raise ValueError('Выбери тип копилки и место хранения.')
     target=finance.money(data,'targetKopecks',zero=kind=='reserve')
+    contribution=finance.money({'amount':data.get('contributionKopecks',old['contribution_amount'] if old else 0)},'amount')
+    interval=data.get('contributionInterval',old['contribution_interval'] if old else 'month')
+    start=day_value(data.get('contributionStartDay',old['contribution_start'] if old else ''),True)
+    if interval not in ('day','week','month'):raise ValueError('Выбери частоту взносов: день, неделя или месяц.')
+    if contribution and not start:raise ValueError('Укажи дату первого регулярного взноса.')
+    if not contribution:start=''
     if entry_id:
         if not old:return False
         if old['status']!='active':raise ValueError('Сначала отмени покупку, чтобы изменить копилку.')
-        db.execute('UPDATE savings_pots SET name=?,kind=?,location=?,location_name=?,target=? WHERE user_id=? AND id=?',(name,kind,location,place,target,user_id,identifier))
+        db.execute('UPDATE savings_pots SET name=?,kind=?,location=?,location_name=?,target=?,contribution_amount=?,contribution_interval=?,contribution_start=? WHERE user_id=? AND id=?',(name,kind,location,place,target,contribution,interval,start,user_id,identifier))
     else:
         balance=finance.money(data,'balanceKopecks')
         if old:
-            if (old['name'],old['kind'],old['location'],old['location_name'],old['target'],old['balance'])!=(name,kind,location,place,target,balance):raise ValueError('Эта копилка уже сохранена.')
+            if (old['name'],old['kind'],old['location'],old['location_name'],old['target'],old['balance'],old['contribution_amount'],old['contribution_interval'],old['contribution_start'])!=(name,kind,location,place,target,balance,contribution,interval,start):raise ValueError('Эта копилка уже сохранена.')
             return True
         if balance>max(0,available(db,user_id)):raise ValueError('Недостаточно свободных денег. Проверь начальный остаток в финансах.')
-        db.execute('INSERT INTO savings_pots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',(user_id,identifier,name,kind,location,place,target,balance,'active',0,0,None,now()))
+        db.execute('INSERT INTO savings_pots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(user_id,identifier,name,kind,location,place,target,balance,'active',0,0,None,now(),contribution,interval,start))
     return True
 
 
@@ -324,7 +333,7 @@ def dispatch(db,user_id,parts,method,data,today):
 
 
 def state(db,user_id):
-    pots=[dict(id=r['id'],name=r['name'],kind=r['kind'],location=r['location'],locationName=r['location_name'],targetKopecks=r['target'],balanceKopecks=r['balance'],status=r['status'],purchaseKopecks=r['purchase_amount']) for r in db.execute('SELECT * FROM savings_pots WHERE user_id=? ORDER BY created_at,id',(user_id,))]
+    pots=[dict(id=r['id'],name=r['name'],kind=r['kind'],location=r['location'],locationName=r['location_name'],targetKopecks=r['target'],balanceKopecks=r['balance'],status=r['status'],purchaseKopecks=r['purchase_amount'],contributionKopecks=r['contribution_amount'],contributionInterval=r['contribution_interval'],contributionStartDay=r['contribution_start']) for r in db.execute('SELECT * FROM savings_pots WHERE user_id=? ORDER BY created_at,id',(user_id,))]
     debts=[]
     for r in db.execute('SELECT * FROM debts WHERE user_id=? ORDER BY due_day,id',(user_id,)):
         payments=[dict(id=p['id'],amountKopecks=p['amount'],day=p['day'],recorded=bool(p['transaction_id'])) for p in db.execute('SELECT * FROM debt_payments WHERE user_id=? AND debt_id=? ORDER BY created_at DESC,id',(user_id,r['id']))]

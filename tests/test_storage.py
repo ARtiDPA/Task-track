@@ -90,6 +90,33 @@ class StorageTests(unittest.TestCase):
         self.page.reload();self.page.wait_for_function('ready')
         self.assertEqual(self.page.evaluate('orgData().debts[0].monthlyDay'),31)
 
+    def test_savings_forecast_preview_and_settings_survive_reload(self):
+        self.register();self.page.goto(self.url);self.page.wait_for_function('ready')
+        self.page.evaluate("setView('finance');setFinanceSection('savings')")
+        self.page.locator('#savings-add').click()
+        self.page.locator('#pot-name').fill('На путешествие')
+        self.page.locator('#pot-target').fill('25000')
+        self.page.locator('#pot-contribution').fill('10000')
+        self.page.locator('#pot-start').fill('2027-01-31')
+        expect(self.page.locator('#pot-forecast-preview')).to_contain_text('31 марта 2027')
+        self.page.locator('#org-pot-dialog [type=submit]').click()
+        expect(self.page.locator('#org-pot-dialog')).not_to_be_visible()
+        expect(self.page.locator('#savings-list')).to_contain_text('31 марта 2027')
+        self.page.reload();self.page.wait_for_function('ready')
+        self.page.evaluate("setView('finance');setFinanceSection('savings')")
+        expect(self.page.locator('#savings-list')).to_contain_text('31 марта 2027')
+        self.page.locator('[data-edit-pot]').click()
+        expect(self.page.locator('#pot-contribution')).to_have_value('10000,00')
+        self.page.locator('#pot-interval').select_option('week')
+        expect(self.page.locator('#pot-forecast-preview')).to_contain_text('14 февраля 2027')
+        self.page.locator('#org-pot-dialog [type=submit]').click()
+        expect(self.page.locator('#org-pot-dialog')).not_to_be_visible()
+        self.page.evaluate('document.getAnimations().filter(a=>a.effect.getTiming().iterations!==Infinity).forEach(a=>a.finish())')
+        self.page.screenshot(path=str(Path(tempfile.gettempdir())/'ritmo-savings-forecast-desktop.png'),full_page=True)
+        self.page.set_viewport_size(dict(width=390,height=844))
+        self.assertTrue(self.page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+        self.page.screenshot(path=str(Path(tempfile.gettempdir())/'ritmo-savings-forecast-mobile.png'),full_page=True)
+
     def seed_legacy(self):
         with self.server.store.connect() as db:
             db.execute('INSERT INTO habits VALUES (?,?,?,?,?,?,?)',('legacy','Старая привычка','Развитие','📖','#9772db',today(),0))

@@ -103,7 +103,7 @@ class Store:
             hydration.initialize(db)
             finance.initialize(db)
             organizer.initialize(db)
-            db.execute('PRAGMA user_version=5')
+            db.execute('PRAGMA user_version=6')
 
     @contextmanager
     def connect(self):

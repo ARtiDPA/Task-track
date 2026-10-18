@@ -50,5 +50,22 @@ class PlannerMathTests(unittest.TestCase):
         rows=self.page.evaluate("d=>RitmoSchedule.debtOccurrences(d,'2028-03-31','2028-02-01')",debt)
         self.assertEqual([r['day'] for r in rows],['2028-02-29','2028-03-31'])
 
+    def forecast(self,interval='month',start='2027-01-31',today='2027-01-01',**changes):
+        pot=dict(targetKopecks=27000,balanceKopecks=2000,contributionKopecks=10000,contributionInterval=interval,contributionStartDay=start)
+        return self.page.evaluate('([p,t])=>RitmoSchedule.savingsForecast(p,t)',[{**pot,**changes},today])
+
+    def test_savings_forecast_monthly_weekly_daily_and_final_partial(self):
+        f=self.forecast()
+        self.assertEqual((f['day'],f['count'],f['lastContribution']),('2027-03-31',3,5000))
+        self.assertEqual([p['day'] for p in f['points']],['2027-01-01','2027-01-31','2027-02-28','2027-03-31'])
+        self.assertEqual(self.forecast('week','2027-01-01')['day'],'2027-01-15')
+        self.assertEqual(self.forecast('day','2027-01-01')['day'],'2027-01-03')
+        self.assertEqual(self.forecast(today='2027-02-01')['day'],'2027-04-30')
+        self.assertEqual(self.forecast(today='2027-02-28')['firstDay'],'2027-02-28')
+        self.assertEqual(self.forecast(contributionKopecks=0)['status'],'unconfigured')
+        self.assertEqual(self.forecast(balanceKopecks=27000)['status'],'reached')
+        self.assertEqual(self.forecast(targetKopecks=0)['status'],'reserve')
+        self.assertEqual(self.forecast(targetKopecks=100000000000,contributionKopecks=1)['status'],'distant')
+
 
 if __name__=='__main__':unittest.main()
