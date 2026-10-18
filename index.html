@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="relationships.css">
   <link rel="stylesheet" href="day-tasks.css">
   <link rel="stylesheet" href="wishlist.css">
+  <link rel="stylesheet" href="focus.css">
   <script src="metrics.js" defer></script>
   <script src="storage.js" defer></script>
   <script src="emoji-catalog.js" defer></script>
@@ -34,6 +35,8 @@
   <script src="calendar.js" defer></script>
   <script src="relationships.js" defer></script>
   <script src="wishlist.js" defer></script>
+  <script src="focus-math.js" defer></script>
+  <script src="focus.js" defer></script>
   <script src="account.js" defer></script>
 </head>
 <body>
@@ -47,6 +50,7 @@
         <button class="nav-item" data-view="habits"><span data-icon="layers"></span>Мои привычки<span class="nav-count" id="habit-count">6</span></button>
         <button class="nav-item" data-view="analytics"><span data-icon="chart"></span>Статистика</button>
         <button class="nav-item" data-view="finance"><span data-icon="wallet"></span>Финансы</button>
+        <button class="nav-item" data-view="focus"><span data-icon="target"></span>Фокус</button>
         <button class="nav-item" data-view="tasks"><span data-icon="check-circle"></span>План дня</button>
         <button class="nav-item" data-view="calendar"><span data-icon="calendar"></span>Календарь</button>
         <button class="nav-item" data-view="wishlist"><span data-icon="sparkles"></span>Мой вишлист</button>
@@ -75,6 +79,7 @@
           <section class="card activity-card"><div class="section-header"><div><h2>Год маленьких побед <span class="activity-emoji">✦</span></h2><p><strong id="year-total">0 выполнений</strong> за последний год. Каждая клетка — часть твоей истории.</p></div><div class="activity-controls"><select id="activity-habit" aria-label="Привычка для карты активности"><option value="all">Все привычки</option></select><span class="year-badge" id="activity-year"></span></div></div><div class="heatmap-scroll"><div id="heatmap"></div></div><div class="activity-footer"><span><span class="activity-dot"></span>Маленькие действия складываются в большие изменения.</span><div class="heat-legend">Меньше <i></i><i></i><i></i><i></i><i></i> Больше</div></div></section>
           <section class="bottom-grid"><article class="quote-card"><div class="quote-symbol">“</div><div><p>Ты — это то, что ты делаешь каждый день.</p><span>Создавай привычки. Создавай себя.</span></div><span class="quote-art">✳</span></article><article class="next-card"><div class="next-icon" data-icon="target"></div><div><strong id="next-title">Твоя следующая победа</strong><p id="next-description">Выполни первую привычку сегодня</p></div><span data-icon="arrow-right"></span></article></section>
         </div>
+        <section id="focus-view" hidden></section>
         <section id="wishlist-view" hidden></section>
         <section id="tasks-view" hidden></section>
         <section id="relationships-view" hidden></section>

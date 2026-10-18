@@ -14,7 +14,7 @@ function openTask(id=null,day=taskDay){
 function syncTaskTime(){$('#task-time').disabled=!$('#task-day').value;if(!$('#task-day').value)$('#task-time').value='';}
 $('#task-day').addEventListener('change',syncTaskTime);
 function taskRow(t,compact=false){
-  return `<article class="task-row ${t.done?'is-done':''} ${compact?'compact':''}" data-task-id="${t.id}"><button class="task-check" data-task-toggle="${t.id}" aria-pressed="${t.done}" aria-label="${t.done?'Вернуть':'Выполнить'} задачу ${escapeHTML(t.title)}">${t.done?icon('check'):''}</button><div class="task-row-copy"><strong>${escapeHTML(t.title)}</strong><div class="task-row-meta">${t.time?`<span>◷ ${t.time}</span>`:''}<span class="task-priority ${t.priority}">${taskPriority[t.priority]}</span>${!compact&&taskMode==='overdue'?`<span>${orgDate(t.day)}</span>`:''}</div>${t.note?`<p>${escapeHTML(t.note)}</p>`:''}${taskChecklist(t)}</div><div class="task-row-actions">${!compact&&!t.done&&(taskMode==='inbox'||taskMode==='overdue')?`<button data-task-edit="${t.id}" class="task-schedule">Назначить день</button>`:''}<button data-task-edit="${t.id}" aria-label="Изменить задачу">${icon('edit')}</button><button data-task-delete="${t.id}" aria-label="Удалить задачу">${icon('x')}</button></div></article>`;
+  return `<article class="task-row ${t.done?'is-done':''} ${compact?'compact':''}" data-task-id="${t.id}"><button class="task-check" data-task-toggle="${t.id}" aria-pressed="${t.done}" aria-label="${t.done?'Вернуть':'Выполнить'} задачу ${escapeHTML(t.title)}">${t.done?icon('check'):''}</button><div class="task-row-copy"><strong>${escapeHTML(t.title)}</strong><div class="task-row-meta">${t.time?`<span>◷ ${t.time}</span>`:''}<span class="task-priority ${t.priority}">${taskPriority[t.priority]}</span>${!compact&&taskMode==='overdue'?`<span>${orgDate(t.day)}</span>`:''}</div>${t.note?`<p>${escapeHTML(t.note)}</p>`:''}${taskChecklist(t)}</div><div class="task-row-actions">${!compact&&!t.done?`<button data-task-focus="${t.id}" class="task-schedule">◎ Фокус</button>`:''}${!compact&&!t.done&&(taskMode==='inbox'||taskMode==='overdue')?`<button data-task-edit="${t.id}" class="task-schedule">Назначить день</button>`:''}<button data-task-edit="${t.id}" aria-label="Изменить задачу">${icon('edit')}</button><button data-task-delete="${t.id}" aria-label="Удалить задачу">${icon('x')}</button></div></article>`;
 }
 function renderDayTasks(){
   if(taskProfileId!==currentUser?.id){taskProfileId=currentUser?.id;taskDay=todayKey;taskMode='day';$('#task-search').value='';$('#task-hide-done').checked=false;}
@@ -44,6 +44,7 @@ document.addEventListener('click',event=>{
   const b=event.target.closest('button');if(!b)return;
   if(b.dataset.taskMode){taskMode=b.dataset.taskMode;renderDayTasks();}
   if(b.dataset.taskDay){taskDay=b.dataset.taskDay;renderDayTasks();}
+  if(b.dataset.taskFocus){const t=taskData().find(t=>t.id===b.dataset.taskFocus);if(t){setView('focus');if(!focusData().active)$('#focus-title').value=t.title;else toast('У тебя уже есть активная фокус-сессия.');}}
   if(b.dataset.taskEdit)openTask(b.dataset.taskEdit);
   if(b.dataset.taskToggle){const t=taskData().find(t=>t.id===b.dataset.taskToggle);if(t)taskAction('/api/tasks/'+t.id,'PATCH',{...t,done:!t.done});}
   if(b.dataset.taskDelete)taskAction('/api/tasks/'+b.dataset.taskDelete,'DELETE',{},'Удалить задачу из планировщика и календаря?');
@@ -56,7 +57,7 @@ function taskChecklist(t){
 function renderTaskDraft(){
   $('#task-checklist-draft').innerHTML=taskDraftItems.map((i,n)=>`<div class="task-draft-item"><input type="checkbox" data-draft-done="${n}" ${i.done?'checked':''} aria-label="Шаг выполнен"><input data-draft-title="${n}" value="${escapeHTML(i.title)}" maxlength="120" placeholder="Например, подготовить документы" aria-label="Название шага ${n+1}"><button type="button" data-draft-remove="${n}" aria-label="Удалить шаг">×</button></div>`).join('');$('#task-checklist-add').disabled=taskDraftItems.length>=100;
 }
-$('#task-checklist-add').addEventListener('click',()=>{if(taskDraftItems.length<100){taskDraftItems.push({id:crypto.randomUUID(),title:'',done:false});renderTaskDraft();$('#task-checklist-draft [data-draft-title]:last-of-type')?.focus();}});
+$('#task-checklist-add').addEventListener('click',()=>{if(taskDraftItems.length<100){taskDraftItems.push({id:crypto.randomUUID(),title:'',done:false});renderTaskDraft();$('#task-checklist-draft').querySelectorAll('[data-draft-title]')[taskDraftItems.length-1]?.focus();}});
 $('#task-checklist-draft').addEventListener('input',e=>{if(e.target.dataset.draftTitle!==undefined)taskDraftItems[Number(e.target.dataset.draftTitle)].title=e.target.value;});
 $('#task-checklist-draft').addEventListener('change',e=>{if(e.target.dataset.draftDone!==undefined)taskDraftItems[Number(e.target.dataset.draftDone)].done=e.target.checked;});
 $('#task-checklist-draft').addEventListener('click',e=>{const b=e.target.closest('[data-draft-remove]');if(b){taskDraftItems.splice(Number(b.dataset.draftRemove),1);renderTaskDraft();}});
