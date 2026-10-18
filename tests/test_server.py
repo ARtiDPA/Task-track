@@ -5,6 +5,7 @@ import tempfile
 import threading
 import unittest
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from http.cookies import SimpleCookie
 from contextlib import closing
 from pathlib import Path
@@ -72,6 +73,15 @@ class ServerFixture(unittest.TestCase):
 
 
 class ApiTests(ServerFixture):
+    def test_parallel_asset_requests_are_all_served(self):
+        paths=['/styles.css','/app.js','/finance.js','/water.js','/account.js','/finance.css','/achievements.css']*4
+        def fetch(path):
+            with urlopen(self.url+path,timeout=8) as response:
+                self.assertTrue(response.read())
+                return response.status
+        with ThreadPoolExecutor(max_workers=20) as pool:
+            self.assertTrue(all(status==200 for status in pool.map(fetch,paths)))
+
     def test_full_lifecycle_and_persistence_after_restart(self):
         self.assertFalse(self.request()[1]['initialized'])
         status, state = self.request('/api/habits', 'POST', self.habit())

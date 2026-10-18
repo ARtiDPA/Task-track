@@ -9,7 +9,7 @@ import uuid
 from http.cookies import SimpleCookie, CookieError
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as BaseThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -21,6 +21,11 @@ from auth import Auth, AuthError, SESSION_SECONDS, email_value, password_value, 
 
 ROOT = Path(__file__).resolve().parent
 MOSCOW = timezone(timedelta(hours=3))
+
+
+class ThreadingHTTPServer(BaseThreadingHTTPServer):
+    # Chromium requests the independent styles and scripts concurrently on reload.
+    request_queue_size = 128
 
 
 def today():
