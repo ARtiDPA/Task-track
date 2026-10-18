@@ -95,6 +95,32 @@ class OrganizerTests(ServerFixture):
         for resource,identifier in [('savings','gift'),('debts','credit'),('plans','rent'),('events','party')]:
             self.assertEqual(self.request(f'/api/organizer/{resource}/{identifier}','DELETE',{})[0],404)
 
+    def test_monthly_debt_partial_payments_month_end_and_undo(self):
+        payload=dict(id='monthly',name='Credit',party='',direction='owe',amountKopecks=35000,dueDay='2027-01-31',paymentKopecks=10000,monthlyDay=31,monthlyPaymentKopecks=10000,note='')
+        self.assertEqual(self.request('/api/organizer/debts','POST',payload)[0],200)
+        self.stop_server();self.start_server()
+        self.assertEqual(self.request()[1]['organizer']['debts'][0]['monthlyDay'],31)
+        pay=dict(id='partial',amountKopecks=3000,day=today(),recordTransaction=False)
+        debt=self.request('/api/organizer/debts/monthly/payments','POST',pay)[1]['organizer']['debts'][0]
+        self.assertEqual((debt['dueDay'],debt['paymentKopecks']),('2027-01-31',7000))
+        pay.update(id='rest',amountKopecks=7000)
+        debt=self.request('/api/organizer/debts/monthly/payments','POST',pay)[1]['organizer']['debts'][0]
+        self.assertEqual((debt['dueDay'],debt['paymentKopecks']),('2027-02-28',10000))
+        pay.update(id='double',amountKopecks=12000)
+        debt=self.request('/api/organizer/debts/monthly/payments','POST',pay)[1]['organizer']['debts'][0]
+        self.assertEqual((debt['dueDay'],debt['paymentKopecks']),('2027-03-31',8000))
+        debt=self.request('/api/organizer/debts/monthly/payments/double','DELETE',{})[1]['organizer']['debts'][0]
+        self.assertEqual((debt['dueDay'],debt['paymentKopecks']),('2027-02-28',10000))
+        pay.update(id='close',amountKopecks=25000)
+        debt=self.request('/api/organizer/debts/monthly/payments','POST',pay)[1]['organizer']['debts'][0]
+        self.assertEqual((debt['dueDay'],debt['remainingKopecks']),('',0))
+
+    def test_monthly_schedule_validation(self):
+        payload=dict(id='monthly',name='Credit',party='',direction='owe',amountKopecks=30000,dueDay='2027-02-28',paymentKopecks=10000,monthlyDay=31,monthlyPaymentKopecks=10000,note='')
+        for field,value in [('monthlyDay',32),('monthlyDay',True),('monthlyPaymentKopecks',0),('dueDay',''),('dueDay','2027-02-27')]:
+            self.assertEqual(self.request('/api/organizer/debts','POST',{**payload,field:value})[0],400)
+        self.assertEqual(self.request('/api/organizer/debts','POST',payload)[0],200)
+
     def test_calendar_events_can_be_edited_and_deleted_with_date_validation(self):
         event=dict(id='meeting',title='Встреча',day='2027-02-28',time='18:30',note='Адрес')
         self.request('/api/organizer/events','POST',event)

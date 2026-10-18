@@ -7,7 +7,7 @@ class PlannerMathTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.playwright=sync_playwright().start();cls.browser=cls.playwright.chromium.launch(channel='msedge',headless=True)
-        cls.page=cls.browser.new_page();cls.page.add_script_tag(path=str(Path(__file__).resolve().parents[1]/'planner-math.js'))
+        cls.page=cls.browser.new_page();cls.page.add_script_tag(path=str(Path(__file__).resolve().parents[1]/'schedule.js'));cls.page.add_script_tag(path=str(Path(__file__).resolve().parents[1]/'planner-math.js'))
 
     @classmethod
     def tearDownClass(cls):cls.browser.close();cls.playwright.stop()
@@ -38,6 +38,17 @@ class PlannerMathTests(unittest.TestCase):
         result=self.calculate(dict(openingBalanceKopecks=100000,transactions=[]),organizer)
         self.assertEqual(result['expenses'],10000);self.assertEqual(result['overdue'],1)
         self.assertEqual(result['series'][0]['balance'],90000)
+
+    def test_monthly_debt_expands_all_instalments_and_caps_at_remaining(self):
+        debt=dict(id='credit',name='Credit',direction='owe',remainingKopecks=25000,paymentKopecks=5000,monthlyDay=31,monthlyPaymentKopecks=10000,dueDay='2027-01-31')
+        rows=self.page.evaluate("d=>RitmoSchedule.debtOccurrences(d,'2027-06-30')",debt)
+        self.assertEqual(rows,[dict(day='2027-01-31',amount=5000),dict(day='2027-02-28',amount=10000),dict(day='2027-03-31',amount=10000)])
+        result=self.page.evaluate("d=>RitmoPlanner.calculate({openingBalanceKopecks:100000},{debts:[d]},'2027-01-01','2027-04-30')",debt)
+        self.assertEqual(result['expenses'],25000)
+        self.assertEqual(len(result['items']),3)
+        debt['dueDay']='2028-01-31'
+        rows=self.page.evaluate("d=>RitmoSchedule.debtOccurrences(d,'2028-03-31','2028-02-01')",debt)
+        self.assertEqual([r['day'] for r in rows],['2028-02-29','2028-03-31'])
 
 
 if __name__=='__main__':unittest.main()

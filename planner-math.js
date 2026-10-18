@@ -13,7 +13,7 @@ globalThis.RitmoPlanner=Object.freeze({
     }
     if(includeDebts)for(const debt of organizer.debts||[]){
       if(debt.remainingKopecks<=0||!debt.dueDay||debt.dueDay>end||(debt.direction==='owed'&&!includeIncome))continue;
-      items.push({id:debt.id,day:debt.dueDay<today?today:debt.dueDay,originalDay:debt.dueDay,name:debt.name,kind:debt.direction==='owe'?'expense':'income',amount:debt.paymentKopecks||debt.remainingKopecks,source:'debt'});
+      for(const occurrence of RitmoSchedule.debtOccurrences(debt,end))items.push({id:debt.id,day:occurrence.day<today?today:occurrence.day,originalDay:occurrence.day,name:debt.name,kind:debt.direction==='owe'?'expense':'income',amount:occurrence.amount,source:'debt'});
     }
     items.sort((a,b)=>a.day.localeCompare(b.day)||a.kind.localeCompare(b.kind));
     const income=items.filter(i=>i.kind==='income').reduce((s,i)=>s+i.amount,0),expenses=items.filter(i=>i.kind==='expense').reduce((s,i)=>s+i.amount,0);
