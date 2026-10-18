@@ -105,9 +105,9 @@ class Store:
             hydration.initialize(db)
             finance.initialize(db)
             organizer.initialize(db)
-            relationships.initialize(db)
+            relationships.initialize(db,today())
             day_tasks.initialize(db)
-            db.execute('PRAGMA user_version=8')
+            db.execute('PRAGMA user_version=9')
 
     @contextmanager
     def connect(self):
@@ -277,7 +277,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not day_tasks.dispatch(db,user_id,parts,self.command,data):
                         self.send_json(404,{'error':'Задача не найдена.'});return
                 elif parts[:2]==['api','relationships']:
-                    if not relationships.dispatch(db,user_id,parts,self.command,data):
+                    if not relationships.dispatch(db,user_id,parts,self.command,data,today()):
                         self.send_json(404,{'error':'Запись не найдена.'});return
                 elif parts[:2]==['api','organizer']:
                     if not organizer.dispatch(db,user_id,parts,self.command,data,today()):

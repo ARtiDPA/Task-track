@@ -132,5 +132,37 @@ class RelationshipUITests(unittest.TestCase):
         expect(self.page.locator('#rel-cards')).to_contain_text('Наш первый пикник')
         self.assertEqual(self.errors,[])
 
+    def test_last_moments_use_actual_dates_and_undo_updates_the_tracker(self):
+        from datetime import date,timedelta
+        from server import today
+        yesterday=(date.fromisoformat(today())-timedelta(days=1)).isoformat()
+        self.open_page()
+        self.seed('planned','gift','Будущий подарок',day='2099-01-01')
+        self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=relationships]').click()
+        card=self.page.locator('[data-rel-last=gift]')
+        expect(card).to_contain_text('Пока нет отметок')
+        card.locator('[data-rel-quick]').click()
+        self.page.locator('#rel-activity-title').fill('Подарил цветы')
+        self.page.locator('#rel-activity-day').fill(yesterday)
+        self.page.locator('#rel-activity-dialog [type=submit]').click()
+        expect(self.page.locator('#rel-activity-dialog')).not_to_be_visible()
+        expect(card).to_contain_text('Вчера')
+        self.page.locator('[data-rel-tab=gift]').click()
+        self.page.locator('#rel-cards [data-rel-done]').click()
+        expect(card).to_contain_text('Сегодня')
+        self.page.locator('#rel-cards [data-rel-edit]').click()
+        expect(self.page.locator('#rel-entry-day')).to_have_value('2099-01-01')
+        expect(self.page.locator('#rel-completed-day')).to_have_value(today())
+        self.page.locator('#rel-completed-day').fill(yesterday)
+        self.save_entry();expect(card).to_contain_text('Вчера')
+        self.page.locator('#rel-cards [data-rel-done]').click()
+        expect(card).to_contain_text('Подарил цветы')
+        self.page.locator('.rel-activity-history summary').click()
+        self.page.once('dialog',lambda d:d.accept());self.page.locator('[data-rel-activity-delete]').click()
+        expect(card).to_contain_text('Пока нет отметок')
+        self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=relationships]').click()
+        expect(card).to_contain_text('Пока нет отметок')
+        self.assertEqual(self.errors,[])
+
 
 if __name__=='__main__':unittest.main()

@@ -1,14 +1,15 @@
 """Private relationship notebook, ideas and dates. Amounts are integer kopecks."""
-from datetime import datetime, timezone, time
+from datetime import datetime, timezone, time, timedelta
 import re
 from urllib.parse import urlsplit
 import finance
-from organizer import text, day_value
+from organizer import text, day_value, linked_id
 
 KINDS=('note','gift','date','milestone','care','memory')
 
 
-def initialize(db):
+def initialize(db,today=None):
+    today=today or datetime.now(timezone(timedelta(hours=3))).date().isoformat()
     db.executescript('''
         CREATE TABLE IF NOT EXISTS relationship_profiles (
             user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -22,10 +23,39 @@ def initialize(db):
             created_at TEXT NOT NULL,PRIMARY KEY(user_id,id)
         );
         CREATE INDEX IF NOT EXISTS relationship_entries_profile ON relationship_entries(user_id,kind,day);
+        CREATE TABLE IF NOT EXISTS relationship_activity (
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,id TEXT NOT NULL,
+            entry_id TEXT,kind TEXT NOT NULL,title TEXT NOT NULL,day TEXT NOT NULL,created_at TEXT NOT NULL,
+            PRIMARY KEY(user_id,id),UNIQUE(user_id,entry_id)
+        );
+        CREATE INDEX IF NOT EXISTS relationship_activity_day ON relationship_activity(user_id,kind,day);
     ''')
+    if 'completed_day' not in [r['name'] for r in db.execute('PRAGMA table_info(relationship_entries)')]:
+        db.execute("ALTER TABLE relationship_entries ADD COLUMN completed_day TEXT NOT NULL DEFAULT ''")
+    # Preserve old completion marks using the recorded day, never a future planned date.
+    for r in db.execute("SELECT * FROM relationship_entries WHERE done=1 AND kind IN ('gift','date','care') AND completed_day=''").fetchall():
+        actual=r['day'] if r['day'] and r['day']<=today else min(r['created_at'][:10],today)
+        db.execute('UPDATE relationship_entries SET completed_day=? WHERE user_id=? AND id=?',(actual,r['user_id'],r['id']))
+        db.execute('INSERT OR IGNORE INTO relationship_activity VALUES (?,?,?,?,?,?,?)',(r['user_id'],linked_id('rel',r['id']),r['id'],r['kind'],r['title'],actual,r['created_at']))
 
 
-def dispatch(db,user_id,parts,method,data):
+def dispatch(db,user_id,parts,method,data,today=None):
+    today=today or datetime.now(timezone(timedelta(hours=3))).date().isoformat()
+    if parts[:3]==['api','relationships','activity']:
+        if method=='POST' and len(parts)==3:
+            identifier=finance.identifier(data.get('id'));kind=data.get('kind');day=day_value(data.get('day'));title=text(data,'title',100)
+            if kind not in ('gift','date','care') or day>today:raise ValueError('Укажи тип события и фактическую дату не позже сегодня.')
+            old=db.execute('SELECT * FROM relationship_activity WHERE user_id=? AND id=?',(user_id,identifier)).fetchone()
+            if old:
+                if old['entry_id'] or (old['kind'],old['title'],old['day'])!=(kind,title,day):raise ValueError('Эта отметка уже сохранена.')
+            else:db.execute('INSERT INTO relationship_activity VALUES (?,?,?,?,?,?,?)',(user_id,identifier,None,kind,title,day,datetime.now(timezone.utc).isoformat()))
+            return True
+        if method=='DELETE' and len(parts)==4:
+            old=db.execute('SELECT * FROM relationship_activity WHERE user_id=? AND id=?',(user_id,parts[3])).fetchone()
+            if not old:return False
+            if old['entry_id']:db.execute("UPDATE relationship_entries SET done=0,completed_day='' WHERE user_id=? AND id=?",(user_id,old['entry_id']))
+            db.execute('DELETE FROM relationship_activity WHERE user_id=? AND id=?',(user_id,parts[3]));return True
+        raise ValueError('Неизвестное действие.')
     if method=='PUT' and parts==['api','relationships','profile']:
         name=text(data,'partnerName',60,True);day=day_value(data.get('togetherDay'),True)
         db.execute('INSERT INTO relationship_profiles VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET partner_name=excluded.partner_name,together_day=excluded.together_day',(user_id,name,day))
@@ -35,6 +65,7 @@ def dispatch(db,user_id,parts,method,data):
     old=db.execute('SELECT * FROM relationship_entries WHERE user_id=? AND id=?',(user_id,identifier)).fetchone()
     if len(parts)==4 and not old:return False
     if method=='DELETE' and len(parts)==4:
+        db.execute('DELETE FROM relationship_activity WHERE user_id=? AND entry_id=?',(user_id,identifier))
         db.execute('DELETE FROM relationship_entries WHERE user_id=? AND id=?',(user_id,identifier));return True
     if (method,len(parts)) not in [('POST',3),('PATCH',4)]:raise ValueError('Неизвестное действие.')
     kind=data.get('kind');title=text(data,'title',100);body=text(data,'body',6000,True)
@@ -60,17 +91,24 @@ def dispatch(db,user_id,parts,method,data):
         try:parsed=urlsplit(url)
         except ValueError:raise ValueError('Проверь ссылку.')
         if parsed.scheme not in ('http','https') or not parsed.hostname or any(c.isspace() or ord(c)<32 for c in url):raise ValueError('Ссылка должна начинаться с https:// или http://.')
-    values=(kind,title,body,category,price,location,url,day,clock,*flags)
+    tracked=kind in ('gift','date','care') and data['done']
+    completed=day_value(data.get('completedDay') or (old['completed_day'] if old and old['done'] else today)) if tracked else ''
+    if tracked and completed>today:raise ValueError('Фактическая дата события не может быть в будущем.')
+    values=(kind,title,body,category,price,location,url,day,clock,*flags,completed)
     if method=='PATCH':
-        db.execute('UPDATE relationship_entries SET kind=?,title=?,body=?,category=?,price=?,location=?,url=?,day=?,time=?,done=?,pinned=?,yearly=? WHERE user_id=? AND id=?',(*values,user_id,identifier))
+        db.execute('UPDATE relationship_entries SET kind=?,title=?,body=?,category=?,price=?,location=?,url=?,day=?,time=?,done=?,pinned=?,yearly=?,completed_day=? WHERE user_id=? AND id=?',(*values,user_id,identifier))
     elif old:
-        if tuple(old[key] for key in ('kind','title','body','category','price','location','url','day','time','done','pinned','yearly'))!=values:raise ValueError('Эта запись уже сохранена с другими данными.')
+        if tuple(old[key] for key in ('kind','title','body','category','price','location','url','day','time','done','pinned','yearly','completed_day'))!=values:raise ValueError('Эта запись уже сохранена с другими данными.')
     else:
-        db.execute('INSERT INTO relationship_entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(user_id,identifier,*values,datetime.now(timezone.utc).isoformat()))
+        db.execute('INSERT INTO relationship_entries (user_id,id,kind,title,body,category,price,location,url,day,time,done,pinned,yearly,completed_day,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(user_id,identifier,*values,datetime.now(timezone.utc).isoformat()))
+    if tracked:
+        db.execute('INSERT INTO relationship_activity VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id,id) DO UPDATE SET title=excluded.title,day=excluded.day',(user_id,linked_id('rel',identifier),identifier,kind,title,completed,datetime.now(timezone.utc).isoformat()))
+    else:db.execute('DELETE FROM relationship_activity WHERE user_id=? AND entry_id=?',(user_id,identifier))
     return True
 
 
 def state(db,user_id):
     profile=db.execute('SELECT * FROM relationship_profiles WHERE user_id=?',(user_id,)).fetchone()
-    entries=[dict(id=r['id'],kind=r['kind'],title=r['title'],body=r['body'],category=r['category'],priceKopecks=r['price'],location=r['location'],url=r['url'],day=r['day'],time=r['time'],done=bool(r['done']),pinned=bool(r['pinned']),yearly=bool(r['yearly'])) for r in db.execute('SELECT * FROM relationship_entries WHERE user_id=? ORDER BY pinned DESC,created_at DESC,id',(user_id,))]
-    return dict(partnerName=profile['partner_name'] if profile else '',togetherDay=profile['together_day'] if profile else '',entries=entries)
+    entries=[dict(id=r['id'],kind=r['kind'],title=r['title'],body=r['body'],category=r['category'],priceKopecks=r['price'],location=r['location'],url=r['url'],day=r['day'],time=r['time'],done=bool(r['done']),pinned=bool(r['pinned']),yearly=bool(r['yearly']),completedDay=r['completed_day']) for r in db.execute('SELECT * FROM relationship_entries WHERE user_id=? ORDER BY pinned DESC,created_at DESC,id',(user_id,))]
+    activities=[dict(id=r['id'],entryId=r['entry_id'],kind=r['kind'],title=r['title'],day=r['day']) for r in db.execute('SELECT * FROM relationship_activity WHERE user_id=? ORDER BY day DESC,created_at DESC,id',(user_id,))]
+    return dict(partnerName=profile['partner_name'] if profile else '',togetherDay=profile['together_day'] if profile else '',entries=entries,activities=activities)

@@ -1,7 +1,7 @@
 const relKinds={note:{label:'О ней',single:'Заметка',emoji:'✎',add:'Добавить заметку',hint:'Любимые цветы, вкус кофе, размеры, мечты и всё, что хочется запомнить.'},gift:{label:'Подарки',single:'Подарок',emoji:'🎁',add:'Идея подарка',hint:'Сохраняй желания, цены и ссылки. Выбирай подарок под повод и бюджет.'},date:{label:'Свидания',single:'Свидание',emoji:'🥂',add:'Идея свидания',hint:'Ваш список «однажды». От домашнего вечера до маленького путешествия.'},milestone:{label:'Важные даты',single:'Важная дата',emoji:'♡',add:'Важная дата'},care:{label:'Забота',single:'Знак внимания',emoji:'☀',add:'Знак внимания',hint:'Забрать с работы, оставить записку, приготовить любимый завтрак. Маленькое тоже важно.'},memory:{label:'Воспоминания',single:'Воспоминание',emoji:'📷',add:'Сохранить момент',hint:'Место для ваших историй: куда сходили, над чем смеялись, что хочется повторить.'}};
 const relQuestions=['Что на этой неделе помогло тебе почувствовать мою поддержку?','Какой наш день ты хотела бы повторить?','Что мы давно хотим попробовать вместе?','Как я могу сделать твою следующую неделю легче?','Что сейчас приносит тебе больше всего радости?','Какая маленькая традиция могла бы стать нашей?','О чём тебе хочется поговорить, но пока не было времени?','Как ты любишь отдыхать после сложного дня?'];
 let relTab='note',relProfileId=null,relEditId=null,relEditKind='note',relQuestionIndex=0,relSelectedDay=todayKey,relMonth=todayKey.slice(0,7);
-const relData=()=>state.relationships||{partnerName:'',togetherDay:'',entries:[]};
+const relData=()=>state.relationships||{partnerName:'',togetherDay:'',entries:[],activities:[]};
 const relEntry=id=>relData().entries.find(e=>e.id===id);
 const relDiff=(a,b)=>Math.round((Date.parse(a+'T12:00:00Z')-Date.parse(b+'T12:00:00Z'))/86400000);
 const relEsc=escapeHTML;
@@ -29,6 +29,7 @@ function relCalendarItems(from,end){
 $('#relationships-view').innerHTML=`
   <article class="rel-hero"><div class="rel-hero-copy"><span class="rel-kicker">ВАША МАЛЕНЬКАЯ ВСЕЛЕННАЯ</span><h2 id="rel-hero-title">Быть рядом.<br>Замечать больше.</h2><p>Не забывать её любимое. Находить время для вас.<br>Собирать моменты, к которым хочется вернуться.</p><button id="rel-profile-open">Настроить вашу историю ${icon('arrow-up-right')}</button></div><div class="rel-hero-art" aria-hidden="true"><div class="rel-orbit one"></div><div class="rel-orbit two"></div><span class="rel-art-star">✦</span><span class="rel-art-heart">♡</span><span class="rel-art-small">✧</span></div><div class="rel-together"><span>ВАША ИСТОРИЯ</span><strong id="rel-together-count">♡</strong><small id="rel-together-label">У каждой любви своё начало</small></div></article>
   <div class="rel-stats"><article><span>Ближайший повод</span><strong id="rel-next-title">Пока чистый лист</strong><small id="rel-next-day">Добавь важную дату</small></article><article><span>Идей для неё</span><strong id="rel-gifts-count">0</strong><small>Подарки, которые ждут своего момента</small></article><article><span>Время вдвоём</span><strong id="rel-dates-count">0</strong><small>Свиданий в вашей истории</small></article></div>
+  <section class="rel-last-section" aria-label="Последние знаки внимания"><div class="rel-section-head"><div><h2>Маленькие моменты близости</h2><p>Когда вы в последний раз радовали друг друга. Учитываются только состоявшиеся события.</p></div></div><div class="rel-last-grid" id="rel-last-grid"></div><details class="rel-activity-history"><summary id="rel-activity-count">История приятных моментов</summary><div id="rel-activity-list"></div></details></section>
   <div class="rel-tabs" role="group" aria-label="Разделы личной жизни">${['note','gift','date','planner','care','memory'].map(k=>`<button data-rel-tab="${k}" aria-pressed="${k==='note'}" class="${k==='note'?'selected':''}">${k==='planner'?'◷ Планировщик':relKinds[k].label}</button>`).join('')}</div>
   <div id="rel-library"><div class="rel-section-head"><div><h2 id="rel-section-title"></h2><p id="rel-section-hint"></p></div><button class="button button-primary rel-main-add" id="rel-add">＋ Добавить</button></div><div class="rel-library-tools"><input id="rel-search" type="search" placeholder="Найти по названию, деталям, месту…" aria-label="Поиск записей личной жизни"><select id="rel-status-filter" aria-label="Статус идей"><option value="all">Все записи</option><option value="ideas">Без даты</option><option value="planned">Запланировано</option><option value="done">Выполнено</option></select><label id="rel-budget-filter-label">До <input id="rel-budget-filter" inputmode="decimal" placeholder="любая сумма" aria-label="Бюджет для поиска идей"> ₽</label></div><p id="rel-library-summary"></p><div id="rel-cards" class="rel-cards"></div></div>
   <div id="rel-planner" hidden><div class="rel-section-head"><div><h2>Время для вас двоих</h2><p>Ваш отдельный календарь. Свидания, подарки и поводы — в одном ритме.</p></div><button class="button button-primary" data-rel-new="milestone">＋ Важная дата</button></div><div class="rel-planner-layout"><article class="card rel-month-card"><div class="rel-month-toolbar"><h3 id="rel-month-title"></h3><div><button data-rel-month-shift="-1" aria-label="Предыдущий месяц личного календаря">←</button><button id="rel-calendar-today">Сегодня</button><button data-rel-month-shift="1" aria-label="Следующий месяц личного календаря">→</button></div></div><div class="calendar-weekdays"><span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span><span>ПТ</span><span>СБ</span><span>ВС</span></div><div class="calendar-grid rel-calendar-grid" id="rel-calendar-grid"></div><div class="rel-calendar-legend"><span>♡ Важная дата</span><span>🥂 Свидание</span><span>🎁 Подарок</span><span>☀ Забота</span></div><p id="rel-month-budget" class="rel-month-budget"></p></article><article class="card rel-day-card"><div class="rel-day-heading"><span class="rel-kicker">ПЛАН НА ДЕНЬ</span><h3 id="rel-day-title"></h3><p id="rel-day-budget"></p></div><div class="rel-day-add"><button data-rel-new="date">＋ Свидание</button><button data-rel-new="gift">＋ Подарок</button><button data-rel-new="care">＋ Забота</button><button data-rel-new="milestone">＋ Повод</button></div><div id="rel-day-agenda"></div></article></div><article class="card rel-upcoming-card"><div class="rel-section-head"><div><h3>Не упустить важное</h3><p>Ближайшие 30 дней и ежегодные поводы</p></div></div><div id="rel-upcoming"></div></article><div class="rel-section-head"><div><h3>Все важные даты</h3><p>Годовщины и дни рождения можно повторять каждый год.</p></div></div><div id="rel-milestones" class="rel-cards"></div></div>
@@ -44,11 +45,12 @@ orgDialog('rel-entry-dialog','Сохранить важное',`
   <div id="rel-entry-money-field">${orgField('Цена / бюджет, ₽ (можно оставить пустым)',orgInput('rel-entry-price','Неизвестно'))}</div>
   <div id="rel-entry-place-field">${orgField('Место / магазин','<input id="rel-entry-place" maxlength="180" placeholder="Куда пойдём или где купить">')}${orgField('Ссылка','<input id="rel-entry-url" type="url" maxlength="1000" placeholder="https://…">')}</div>
   <div id="rel-entry-date-fields" class="org-fields">${orgField('Дата','<input id="rel-entry-day" type="date" min="1900-01-01" max="2100-12-31">')}${orgField('Время (необязательно)','<input id="rel-entry-time" type="time">')}</div>
+  <div id="rel-completed-day-field">${orgField('Когда это произошло на самом деле','<input id="rel-completed-day" type="date" min="1900-01-01" max="2100-12-31">')}<small>Эта дата используется в трекере последних подарков, свиданий и заботы. Дата плана остаётся отдельно.</small></div>
   <label class="org-check" id="rel-entry-yearly-label"><input id="rel-entry-yearly" type="checkbox">Повторять каждый год</label>
   <label class="org-check"><input id="rel-entry-pin" type="checkbox">♡ Закрепить в начале списка</label>
   <p id="rel-entry-caption" class="rel-form-caption"></p>`,async()=>{
     const day=$('#rel-entry-day').value,existing=relEntry(relEditId);
-    const result=await persist('/api/relationships/entries'+(existing?'/'+relEditId:''),existing?'PATCH':'POST',{id:relEditId,kind:relEditKind,title:$('#rel-entry-title').value.trim(),body:$('#rel-entry-body').value.trim(),category:$('#rel-entry-category').value.trim(),priceKopecks:['gift','date'].includes(relEditKind)&&$('#rel-entry-price').value.trim()?orgAmount($('#rel-entry-price').value):null,location:$('#rel-entry-place').value.trim(),url:$('#rel-entry-url').value.trim(),day:relEditKind==='note'?'':day,time:relEditKind==='note'?'':$('#rel-entry-time').value,yearly:relEditKind==='milestone'&&$('#rel-entry-yearly').checked,pinned:$('#rel-entry-pin').checked,done:existing?.done||false});
+    const result=await persist('/api/relationships/entries'+(existing?'/'+relEditId:''),existing?'PATCH':'POST',{id:relEditId,kind:relEditKind,title:$('#rel-entry-title').value.trim(),body:$('#rel-entry-body').value.trim(),category:$('#rel-entry-category').value.trim(),priceKopecks:['gift','date'].includes(relEditKind)&&$('#rel-entry-price').value.trim()?orgAmount($('#rel-entry-price').value):null,location:$('#rel-entry-place').value.trim(),url:$('#rel-entry-url').value.trim(),day:relEditKind==='note'?'':day,time:relEditKind==='note'?'':$('#rel-entry-time').value,yearly:relEditKind==='milestone'&&$('#rel-entry-yearly').checked,pinned:$('#rel-entry-pin').checked,done:existing?.done||false,completedDay:existing?.done?$('#rel-completed-day').value:''});
     if(result&&day&&relTab==='planner'){
       const saved=relEntry(relEditId),upcoming=saved?.yearly?relOccurrences(saved,todayKey,dateKey(shiftDate(today,366)))[0]:null;
       relSelectedDay=upcoming?.occurrenceDay||day;relMonth=relSelectedDay.slice(0,7);renderRelPlanner();
@@ -58,6 +60,7 @@ function openRelEntry(kind='note',id=null,day='',preset={}){
   if(!openOrgDialog('rel-entry-dialog'))return;
   const entry=relEntry(id);relEditId=id||crypto.randomUUID();relEditKind=entry?.kind||kind;
   const k=relEditKind,source=entry||preset;
+  const trackedDone=Boolean(entry?.done&&['gift','date','care'].includes(k));$('#rel-completed-day-field').hidden=!trackedDone;$('#rel-completed-day').required=trackedDone;$('#rel-completed-day').max=todayKey;$('#rel-completed-day').value=trackedDone?(entry.completedDay||todayKey):'';
   $('#rel-entry-dialog-title').textContent=(entry?'Изменить: ':'')+relKinds[k].single;
   $('#rel-entry-title').value=source.title||'';$('#rel-entry-body').value=source.body||'';$('#rel-entry-category').value=source.category||'';
   $('#rel-entry-price').value=source.priceKopecks!=null?orgMoneyInput(source.priceKopecks):'';$('#rel-entry-place').value=source.location||'';$('#rel-entry-url').value=source.url||'';
@@ -71,7 +74,7 @@ function openRelEntry(kind='note',id=null,day='',preset={}){
 function setRelTab(tab){relTab=tab;$('#rel-search').value='';$('#rel-status-filter').value='all';$('#rel-budget-filter').value='';renderRelationships();}
 function renderRelationships(){
   if(relProfileId!==currentUser?.id){relProfileId=currentUser?.id;relTab='note';relMonth=todayKey.slice(0,7);relSelectedDay=todayKey;relSurpriseId=null;relQuestionIndex=0;$('#rel-search').value='';$('#rel-budget-filter').value='';$('#rel-status-filter').value='all';$('#rel-surprise-budget').value='';$('#rel-surprise-text').textContent='Выберем случайную идею из твоего списка свиданий с учётом указанного бюджета.';$('#rel-surprise-plan').hidden=true;}
-  const data=relData(),start=data.togetherDay,days=start?relDiff(todayKey,start):0;
+  const data=relData(),start=data.togetherDay,days=start?relDiff(todayKey,start):0;renderRelTrackers();
   $('#rel-hero-title').textContent=data.partnerName?data.partnerName+'. Ваша маленькая вселенная.':'Быть рядом. Замечать больше.';
   $('#rel-together-count').textContent=start?Math.abs(days)+(days>=0?1:0):'♡';$('#rel-together-label').textContent=start?(days>=0?plural(days+1,['день вместе','дня вместе','дней вместе']):'дней до начала вашей истории'):'У каждой любви своё начало';
   const upcoming=relCalendarItems(todayKey,dateKey(shiftDate(today,366))).filter(e=>!e.done),next=upcoming[0];
@@ -136,6 +139,8 @@ $('#rel-calendar-today').addEventListener('click',()=>{relSelectedDay=todayKey;r
 $('#relationships-view').addEventListener('click',async event=>{
   const b=event.target.closest('button');if(!b)return;
   if(b.dataset.relTab)setRelTab(b.dataset.relTab);
+  if(b.dataset.relQuick)openRelActivity(b.dataset.relQuick);
+  if(b.dataset.relActivityDelete)await relAction('/api/relationships/activity/'+b.dataset.relActivityDelete,'DELETE',{},'Отменить эту отметку? Для записи из списка также снимется статус выполнения.');
   if(b.dataset.relNew)openRelEntry(b.dataset.relNew,null,relTab==='planner'?relSelectedDay:'');
   if(b.hasAttribute('data-rel-open-ideas'))setRelTab('date');
   if(b.hasAttribute('data-rel-profile-edit'))$('#rel-profile-open').click();
@@ -144,6 +149,24 @@ $('#relationships-view').addEventListener('click',async event=>{
   if(b.dataset.relEdit){const e=relEntry(b.dataset.relEdit);if(e)openRelEntry(e.kind,e.id);}
   if(b.dataset.relSchedule){const e=relEntry(b.dataset.relSchedule);if(e)openRelEntry(e.kind,e.id,relSelectedDay);}
   if(b.dataset.relPin){const e=relEntry(b.dataset.relPin);if(e)await relAction('/api/relationships/entries/'+e.id,'PATCH',{...e,pinned:!e.pinned});}
-  if(b.dataset.relDone){const e=relEntry(b.dataset.relDone);if(e)await relAction('/api/relationships/entries/'+e.id,'PATCH',{...e,done:!e.done,day:e.day||todayKey});}
+  if(b.dataset.relDone){const e=relEntry(b.dataset.relDone);if(e)await relAction('/api/relationships/entries/'+e.id,'PATCH',{...e,done:!e.done,day:e.day||todayKey,completedDay:e.done?'':todayKey});}
   if(b.dataset.relDelete)await relAction('/api/relationships/entries/'+b.dataset.relDelete,'DELETE',{},'Удалить эту запись из личной жизни?');
 });
+
+let relActivityKind='gift',relActivityId=null;
+const relActivityNames={gift:'Последний подарок',date:'Последнее свидание',care:'Маленькая забота'};
+orgDialog('rel-activity-dialog','Ещё один приятный момент',`<p id="rel-activity-caption"></p>${orgField('Что было','<input id="rel-activity-title" maxlength="100" required placeholder="Букет, прогулка, завтрак…">')}${orgField('Когда','<input id="rel-activity-day" type="date" min="1900-01-01" max="2100-12-31" required>')}<small>Можно отметить событие задним числом. Это фактическая дата: будущие планы в трекер не попадают.</small>`,async()=>persist('/api/relationships/activity','POST',{id:relActivityId,kind:relActivityKind,title:$('#rel-activity-title').value.trim(),day:$('#rel-activity-day').value}),'Сохранить момент ♡');
+function openRelActivity(kind){
+  if(!openOrgDialog('rel-activity-dialog'))return;relActivityKind=kind;relActivityId=crypto.randomUUID();
+  $('#rel-activity-caption').textContent=relActivityNames[kind];$('#rel-activity-title').value={gift:'Подарок',date:'Свидание',care:'Маленькая забота'}[kind];$('#rel-activity-day').value=todayKey;$('#rel-activity-day').max=todayKey;
+}
+function renderRelTrackers(){
+  const activities=(relData().activities||[]).filter(a=>a.day<=todayKey);
+  $('#rel-last-grid').innerHTML=['gift','date','care'].map(kind=>{
+    const last=activities.find(a=>a.kind===kind),days=last?relDiff(todayKey,last.day):null;
+    const elapsed=days===0?'Сегодня':days===1?'Вчера':days===null?'Пока нет отметок':days+' '+plural(days,['день','дня','дней'])+' назад';
+    return `<article class="rel-last-card ${kind}" data-rel-last="${kind}"><div><span class="rel-entry-symbol">${relKinds[kind].emoji}</span><span>${relActivityNames[kind]}</span></div><strong>${elapsed}</strong><p>${last?orgDate(last.day):'Сохрани первый приятный момент'}</p><small>${last?relEsc(last.title):'Можно указать прошедшую дату'}</small><button data-rel-quick="${kind}">＋ Отметить</button></article>`;
+  }).join('');
+  $('#rel-activity-count').textContent='История приятных моментов · '+activities.length;
+  $('#rel-activity-list').innerHTML=activities.length?activities.map(a=>`<div class="rel-activity-row"><span>${relKinds[a.kind].emoji}</span><div><strong>${relEsc(a.title)}</strong><small>${orgDate(a.day)}${a.entryId?' · из твоего списка':''}</small></div><button data-rel-activity-delete="${a.id}" aria-label="Отменить отметку">${icon('x')}</button></div>`).join(''):'<p class="rel-muted">Здесь появятся отметки из трекера и выполненные подарки, свидания и знаки внимания.</p>';
+}
