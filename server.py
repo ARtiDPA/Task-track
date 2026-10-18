@@ -19,6 +19,7 @@ import finance
 import organizer
 import relationships
 import day_tasks
+import wishlist
 from auth import Auth, AuthError, SESSION_SECONDS, email_value, password_value, hash_password, verify_password, load_secret
 
 ROOT = Path(__file__).resolve().parent
@@ -107,7 +108,8 @@ class Store:
             organizer.initialize(db)
             relationships.initialize(db,today())
             day_tasks.initialize(db)
-            db.execute('PRAGMA user_version=9')
+            wishlist.initialize(db)
+            db.execute('PRAGMA user_version=11')
 
     @contextmanager
     def connect(self):
@@ -146,7 +148,7 @@ class Store:
         ledger=finance.state(db,user_id)
         ledger['reservedKopecks']=extras['reservedKopecks']
         ledger['freeBalanceKopecks']=ledger['balanceKopecks']-extras['reservedKopecks']
-        return {'user': user, 'habits': habits, 'initialized': initialized, 'water': hydration.state(db,user_id,today()), 'finance':ledger,'organizer':extras,'relationships':relationships.state(db,user_id),'tasks':day_tasks.state(db,user_id)}
+        return {'user': user, 'habits': habits, 'initialized': initialized, 'water': hydration.state(db,user_id,today()), 'finance':ledger,'organizer':extras,'relationships':relationships.state(db,user_id),'tasks':day_tasks.state(db,user_id),'wishlist':wishlist.state(db,user_id)}
 
     def insert_habit(self, db, user_id, data, position, importing=False):
         habit_id = text_value(data, 'id', 100)
@@ -246,7 +248,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
             return
-        files = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/metrics.js': 'metrics.js', '/storage.js': 'storage.js', '/emoji-catalog.js': 'emoji-catalog.js', '/styles.css': 'styles.css', '/account.css': 'account.css', '/account.js': 'account.js', '/achievements.js': 'achievements.js', '/achievements.css': 'achievements.css', '/water.js': 'water.js', '/water.css': 'water.css', '/finance.js': 'finance.js', '/finance.css': 'finance.css', '/finance-math.js': 'finance-math.js', '/schedule.js':'schedule.js', '/planner-math.js':'planner-math.js', '/money-organizer.js':'money-organizer.js', '/planner.js':'planner.js', '/calendar.js':'calendar.js', '/organizer.css':'organizer.css', '/relationships.js':'relationships.js', '/relationships.css':'relationships.css', '/day-tasks.js':'day-tasks.js', '/day-tasks.css':'day-tasks.css'}
+        files = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/metrics.js': 'metrics.js', '/storage.js': 'storage.js', '/emoji-catalog.js': 'emoji-catalog.js', '/styles.css': 'styles.css', '/account.css': 'account.css', '/account.js': 'account.js', '/achievements.js': 'achievements.js', '/achievements.css': 'achievements.css', '/water.js': 'water.js', '/water.css': 'water.css', '/finance.js': 'finance.js', '/finance.css': 'finance.css', '/finance-math.js': 'finance-math.js', '/schedule.js':'schedule.js', '/planner-math.js':'planner-math.js', '/money-organizer.js':'money-organizer.js', '/planner.js':'planner.js', '/calendar.js':'calendar.js', '/organizer.css':'organizer.css', '/relationships.js':'relationships.js', '/relationships.css':'relationships.css', '/day-tasks.js':'day-tasks.js', '/day-tasks.css':'day-tasks.css', '/wishlist.js':'wishlist.js', '/wishlist.css':'wishlist.css'}
         if path not in files:
             self.send_json(404, {'error': 'Страница не найдена'})
             return
@@ -273,7 +275,10 @@ class Handler(BaseHTTPRequestHandler):
             with store.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
                 store.user(db, user_id)
-                if parts[:2]==['api','tasks']:
+                if parts[:2]==['api','wishlist']:
+                    if not wishlist.dispatch(db,user_id,parts,self.command,data,today()):
+                        self.send_json(404,{'error':'Желание не найдено.'});return
+                elif parts[:2]==['api','tasks']:
                     if not day_tasks.dispatch(db,user_id,parts,self.command,data):
                         self.send_json(404,{'error':'Задача не найдена.'});return
                 elif parts[:2]==['api','relationships']:
