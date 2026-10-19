@@ -52,3 +52,24 @@ class FocusUITests(unittest.TestCase):
         self.page.request.post(self.url+'/api/auth/register',data=dict(email='other@example.com',name='Other',password='other-password'))
         self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=focus]').click()
         expect(self.page.locator('#focus-start')).to_be_visible();expect(self.page.locator('#focus-all-time')).to_have_text('0 сек')
+
+    def test_custom_duration_and_single_completion_chime(self):
+        import time
+        base=int(time.time()*1000)
+        self.register();self.page.goto(self.url);self.page.wait_for_function('ready');self.page.locator('[data-view=focus]').click()
+        self.page.locator('#focus-settings-open').click();self.page.locator('#focus-auto-pause').uncheck()
+        self.page.locator('#focus-settings-dialog [type=submit]').click();expect(self.page.locator('#focus-settings-dialog')).not_to_be_visible()
+        self.page.locator('#focus-minutes').fill('37')
+        expect(self.page.locator('#focus-clock')).to_have_text('37:00')
+        expect(self.page.locator('[data-focus-minutes].selected')).to_have_count(0)
+        self.page.locator('#focus-sound-check').click();expect(self.page.locator('#focus-sound-status')).to_have_text('Звуковой сигнал готов')
+        self.page.evaluate("window.soundCompletions=[];window.addEventListener('ritmo:focus-sound',e=>soundCompletions.push(e.detail.sessionId))")
+        with patch('focus.now_ms',return_value=base):
+            self.page.locator('#focus-start').click();expect(self.page.locator('#focus-pause')).to_be_visible()
+            self.assertEqual(self.page.evaluate('focusData().active.targetMs'),37*60000)
+        with patch('focus.now_ms',return_value=base+37*60000+1000):
+            self.page.evaluate('refreshStorage()');expect(self.page.locator('#focus-start')).to_be_visible()
+            self.assertEqual(self.page.evaluate('soundCompletions.length'),1)
+            self.page.evaluate('renderFocus();tickFocus();renderFocus()')
+            self.assertEqual(self.page.evaluate('soundCompletions.length'),1)
+            expect(self.page.locator('#focus-history')).to_contain_text('37 мин')
