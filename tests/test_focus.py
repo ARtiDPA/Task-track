@@ -53,4 +53,14 @@ class FocusTests(ServerFixture):
         self.request('/api/focus/settings','PUT',dict(goalMinutes=60,autoPause=False))
         self.request('/api/auth/register','POST',dict(email='second@example.com',name='Other',password='other-password'))
         result=self.request()[1]['focus'];self.assertIsNone(result['active']);self.assertEqual(result['totalMs'],0)
-        self.assertTrue(result['settings']['autoPause']);self.assertEqual(self.action('finish')[0],404)
+        self.assertFalse(result['settings']['autoPause']);self.assertEqual(self.action('finish')[0],404)
+
+    def test_legacy_auto_pause_setting_is_disabled_without_resetting_session(self):
+        self.start()
+        self.request('/api/focus/settings','PUT',dict(goalMinutes=90,autoPause=True))
+        self.assertFalse(self.request()[1]['focus']['settings']['autoPause'])
+        with self.server.store.connect() as db:db.execute('UPDATE focus_settings SET auto_pause=1')
+        self.stop_server();self.start_server();self.clock+=20000
+        result=self.request()[1]['focus']
+        self.assertFalse(result['settings']['autoPause']);self.assertEqual(result['settings']['goalMinutes'],90)
+        self.assertEqual(result['active']['status'],'running');self.assertEqual(result['active']['elapsedMs'],20000)

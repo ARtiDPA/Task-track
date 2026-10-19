@@ -19,7 +19,7 @@ class FocusUITests(unittest.TestCase):
         self.register();self.page.goto(self.url);self.page.wait_for_function('ready')
         errors=[];self.page.on('pageerror',lambda e:errors.append(str(e)))
         self.page.locator('[data-view=focus]').click();self.page.locator('#focus-settings-open').click()
-        self.page.locator('#focus-auto-pause').uncheck();self.page.locator('#focus-goal').fill('60')
+        self.page.locator('#focus-goal').fill('60')
         self.page.locator('#focus-settings-dialog [type=submit]').click();expect(self.page.locator('#focus-settings-dialog')).not_to_be_visible()
         with patch('focus.now_ms',return_value=base):
             self.page.locator('#focus-title').fill('Глубокая работа');self.page.locator('#focus-minutes').fill('25');self.page.locator('#focus-start').click()
@@ -44,11 +44,15 @@ class FocusUITests(unittest.TestCase):
             self.page.screenshot(path=str(Path(tempfile.gettempdir())/'ritmo-focus-mobile.png'),full_page=True)
         self.assertEqual(errors,[])
 
-    def test_auto_pause_and_profile_privacy(self):
+    def test_tab_switch_keeps_focus_running_and_profile_privacy(self):
         self.register();self.page.goto(self.url);self.page.wait_for_function('ready');self.page.locator('[data-view=focus]').click()
         self.page.locator('#focus-start').click();expect(self.page.locator('#focus-pause')).to_be_visible()
         self.page.evaluate("window.dispatchEvent(new Event('blur'))")
-        expect(self.page.locator('#focus-resume')).to_be_visible();expect(self.page.locator('#focus-distractions')).to_have_text('1')
+        expect(self.page.locator('#focus-pause')).to_be_visible();expect(self.page.locator('#focus-distractions')).to_have_text('0')
+        other=self.context.new_page();other.goto('about:blank');other.bring_to_front()
+        self.assertEqual(self.page.request.get(self.url+'/api/state',headers=self.api_headers).json()['focus']['active']['status'],'running')
+        other.close();self.page.bring_to_front()
+        expect(self.page.locator('#focus-pause')).to_be_visible()
         self.page.request.post(self.url+'/api/auth/register',data=dict(email='other@example.com',name='Other',password='other-password'))
         self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=focus]').click()
         expect(self.page.locator('#focus-start')).to_be_visible();expect(self.page.locator('#focus-all-time')).to_have_text('0 сек')
@@ -57,7 +61,7 @@ class FocusUITests(unittest.TestCase):
         import time
         base=int(time.time()*1000)
         self.register();self.page.goto(self.url);self.page.wait_for_function('ready');self.page.locator('[data-view=focus]').click()
-        self.page.locator('#focus-settings-open').click();self.page.locator('#focus-auto-pause').uncheck()
+        self.page.locator('#focus-settings-open').click()
         self.page.locator('#focus-settings-dialog [type=submit]').click();expect(self.page.locator('#focus-settings-dialog')).not_to_be_visible()
         self.page.locator('#focus-minutes').fill('37')
         expect(self.page.locator('#focus-clock')).to_have_text('37:00')

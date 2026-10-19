@@ -27,6 +27,8 @@ def initialize(db):
             FOREIGN KEY(user_id,session_id) REFERENCES focus_sessions(user_id,id) ON DELETE CASCADE);
         CREATE INDEX IF NOT EXISTS focus_segments_user ON focus_segments(user_id,start_ms);
     ''')
+    # Switching tabs never pauses focus, including profiles with the old preference.
+    db.execute('UPDATE focus_settings SET auto_pause=0 WHERE auto_pause<>0')
 
 
 def session(db,user_id,identifier):return db.execute('SELECT * FROM focus_sessions WHERE user_id=? AND id=?',(user_id,identifier)).fetchone()
@@ -53,9 +55,9 @@ def reconcile(db,user_id,clock):
 def dispatch(db,user_id,parts,method,data):
     clock=now_ms();reconcile(db,user_id,clock)
     if parts==['api','focus','settings'] and method=='PUT':
-        goal=data.get('goalMinutes');auto=data.get('autoPause')
+        goal=data.get('goalMinutes');auto=data.get('autoPause',False)
         if type(goal) is not int or not 5<=goal<=720 or type(auto) is not bool:raise ValueError('Цель — от 5 до 720 минут. Проверь настройку паузы.')
-        db.execute('INSERT INTO focus_settings VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET goal_minutes=excluded.goal_minutes,auto_pause=excluded.auto_pause',(user_id,goal,int(auto)));return True
+        db.execute('INSERT INTO focus_settings VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET goal_minutes=excluded.goal_minutes,auto_pause=0',(user_id,goal,0));return True
     if parts[:3]!=['api','focus','sessions']:raise ValueError('Неизвестное действие.')
     if method=='POST' and len(parts)==3:
         identifier=finance.identifier(data.get('id'));title=text(data,'title',120);minutes=data.get('minutes')
@@ -109,4 +111,4 @@ def state(db,user_id):
         elapsed=r['elapsed_ms']+(max(0,clock-r['run_started_ms']) if r['status']=='running' else 0)
         return dict(id=r['id'],title=r['title'],targetMs=r['target_ms'],elapsedMs=min(r['target_ms'],elapsed),status=r['status'],startedMs=r['started_ms'],finishedMs=r['finished_ms'],distractions=r['distractions'])
     settings=db.execute('SELECT * FROM focus_settings WHERE user_id=?',(user_id,)).fetchone()
-    return dict(serverNowMs=clock,active=packed(active) if active else None,history=[packed(r) for r in rows if r['status']=='completed'][:100],daily=[dict(day=d,milliseconds=ms) for d,ms in sorted(daily.items())],totalMs=sum(daily.values()),sessionCount=sum(r['status']=='completed' and r['elapsed_ms']>0 for r in rows),bestSessionMs=max((r['elapsed_ms'] for r in rows if r['status']=='completed'),default=0),distractions=sum(r['distractions'] for r in rows),settings=dict(goalMinutes=settings['goal_minutes'] if settings else 120,autoPause=bool(settings['auto_pause']) if settings else True))
+    return dict(serverNowMs=clock,active=packed(active) if active else None,history=[packed(r) for r in rows if r['status']=='completed'][:100],daily=[dict(day=d,milliseconds=ms) for d,ms in sorted(daily.items())],totalMs=sum(daily.values()),sessionCount=sum(r['status']=='completed' and r['elapsed_ms']>0 for r in rows),bestSessionMs=max((r['elapsed_ms'] for r in rows if r['status']=='completed'),default=0),distractions=sum(r['distractions'] for r in rows),settings=dict(goalMinutes=settings['goal_minutes'] if settings else 120,autoPause=False))
