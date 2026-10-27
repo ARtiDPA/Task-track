@@ -8,17 +8,23 @@
 @media(max-width:760px){.nav-item .tiny-new,.nav-item .active-dot{display:none}}
 @media(max-width:520px){.habit-table-heading{display:none}.habit-row,.habits-mode .habit-row{grid-template-columns:minmax(0,1fr) 26px;gap:13px;padding:16px 2px}.habit-info{grid-column:1;grid-row:1;gap:9px;padding-right:22px}.habit-emoji{width:32px;height:34px;font-size:17px;border-radius:9px}.habit-name{font-size:11px}.habit-category{font-size:8px}.habit-week{grid-column:1/-1;grid-row:2;gap:6px}.day-check,.habits-mode .day-check{width:100%;height:40px;gap:1px;grid-template-rows:13px 15px;padding:4px 0;border-radius:8px}.day-check:before{content:attr(data-day);font-size:8px;font-weight:600;opacity:.75}.day-check>span{line-height:10px}.day-check.done svg{width:13px;height:13px}.habit-streak{grid-column:2;grid-row:1;padding:0;font-size:10px}.habit-streak svg{width:12px}.habit-edit{top:19px;right:32px;padding:4px;opacity:.7}.habit-edit svg{width:12px;height:12px}.habits-card{padding:18px 13px 12px}.habits-card .section-header{margin-bottom:8px}.section-header h2{font-size:13px}.section-header p{font-size:8px}.add-inline{font-size:10px;padding:18px 0 5px}.stat-label{font-size:9px}.stat-footer{font-size:8px}.stat-tag{font-size:7px}.activity-controls select{font-size:8px}.page-heading p{font-size:10px}.chart-note p{font-size:10px}.next-card strong{font-size:11px}.next-card p{font-size:10px}.quote-card p{font-size:10px}.quote-card span:not(.quote-art){font-size:8px}}
 
-/* Keep the chart in normal document flow at every viewport width. */
-.chart-card{display:flex;flex-direction:column;gap:0}
+/* A stable plot box keeps the graph readable independently of the habit list. */
+.chart-card{display:flex;flex-direction:column;gap:0;align-self:start}
 .chart-card .section-header{align-self:stretch;flex-shrink:0}
-.chart-summary{margin:20px 0 0;align-self:stretch;display:flex;align-items:center;flex-wrap:wrap;column-gap:14px;row-gap:8px;grid-column:auto}
-.chart-summary>strong{flex-shrink:0;white-space:nowrap}
-.chart-summary>span{font-size:10px;line-height:1.6;letter-spacing:0;gap:7px}
-.chart-container{grid-column:auto;grid-row:auto;margin:16px 0 18px;min-width:0}
-.chart-note{grid-column:auto;align-self:stretch;margin-top:auto}
-.chart-svg{overflow:visible}
-@media(max-width:1020px){.chart-svg{height:220px}.chart-summary{margin-top:20px}.chart-note p{font-size:10px}.chart-note>span{display:grid}}
-@media(max-width:520px){.chart-summary{column-gap:12px}.chart-summary>span{font-size:10px}.chart-svg{height:185px}}
+.chart-card .section-header h2{font-size:16px}
+.chart-card .section-header p{font-size:11px;line-height:1.7}
+.chart-summary{margin:22px 0 0;align-self:stretch;display:flex;flex-direction:column;align-items:flex-start;gap:6px;grid-column:auto}
+.chart-summary>strong{font-size:44px;line-height:1.1;white-space:nowrap}
+.chart-summary small{font-size:23px}
+.chart-summary>span{font-size:11px;line-height:1.6;letter-spacing:0;gap:7px}
+.chart-container{grid-column:auto;grid-row:auto;flex:0 0 224px;height:224px;margin:22px 0 18px;min-width:0;width:100%}
+.chart-note{grid-column:auto;align-self:stretch;margin-top:0}
+.chart-note p{font-size:10px;line-height:1.8}
+.chart-note>span{display:grid}
+.chart-container .chart-svg{display:block;width:100%;height:100%;overflow:visible}
+.chart-container .chart-svg text{font-size:11px}
+@media(min-width:1021px){.analytics-mode .chart-container{flex-basis:264px;height:264px}}
+@media(max-width:520px){.chart-card{padding:22px 16px}.chart-summary>strong{font-size:40px}.chart-container{flex-basis:208px;height:208px}}
 
 .connection-panel{position:fixed;inset:0;background:#0e0d11f5;backdrop-filter:blur(8px);z-index:90;display:grid;place-items:center;padding:24px}
 .connection-card{width:420px;max-width:100%;padding:38px 28px;text-align:center;border:1px solid var(--border);border-radius:22px;background:#0f0e12;box-shadow:0 20px 80px #03030410}

@@ -132,12 +132,26 @@ function renderStats(){
 }
 function periodDates(){return period==='week'?week:Array.from({length:new Date(today.getFullYear(),today.getMonth()+1,0).getDate()},(_,i)=>new Date(today.getFullYear(),today.getMonth(),i+1));}
 function renderChart(){
-  const dates=periodDates(),w=360,h=165,left=28,right=12,top=12,bottom=25,plotH=h-top-bottom;
+  const container=$('#progress-chart');
+  // Use the rendered plot dimensions: stretching a fixed SVG distorts text and dots.
+  const w=Math.max(220,Math.round(container.clientWidth||360));
+  const h=Math.round(container.clientHeight||224);
+  const dates=periodDates(),left=42,right=16,top=16,bottom=32,plotH=h-top-bottom;
   const points=dates.map((d,i)=>({x:left+i*(w-left-right)/(dates.length-1),y:top+plotH*(1-percentage(d)/100),d})).filter(p=>p.d<=today && RitmoMetrics.activeOn(state.habits,dateKey(p.d)).length);
   const path=points.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
   const area=points.length?`${path} L${points.at(-1).x},${top+plotH} L${left},${top+plotH} Z`:'';
-  $('#progress-chart').innerHTML=`<svg class="chart-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Процент выполнения привычек по дням"><defs><linearGradient id="area-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#b39adf" stop-opacity=".25"/><stop offset="100%" stop-color="#b39adf" stop-opacity=".02"/></linearGradient></defs>${[0,25,50,75,100].map(n=>{const y=top+plotH*(1-n/100);return `<line x1="${left}" y1="${y}" x2="${w-right}" y2="${y}" stroke="#f0ecf5" stroke-dasharray="3 4"/><text x="0" y="${y+3}">${n}%</text>`;}).join('')}<path d="${area}" fill="url(#area-fill)"/><path class="chart-line" d="${path}" fill="none" stroke="#a386d6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>${points.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="3" fill="white" stroke="#a386d6" stroke-width="1.7"><title>${p.d.toLocaleDateString('ru-RU')}: ${percentage(p.d)}%</title></circle>`).join('')}${dates.map((d,i)=>period==='week'||i%5===0||i===dates.length-1?`<text x="${left+i*(w-left-right)/(dates.length-1)}" y="${h-3}" text-anchor="middle">${period==='week'?dayNames[i]:d.getDate()}</text>`:'').join('')}</svg>`;
+  container.innerHTML=`<svg class="chart-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Процент выполнения привычек по дням"><defs><linearGradient id="area-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#b39adf" stop-opacity=".25"/><stop offset="100%" stop-color="#b39adf" stop-opacity=".02"/></linearGradient></defs>${[0,25,50,75,100].map(n=>{const y=top+plotH*(1-n/100);return `<line x1="${left}" y1="${y}" x2="${w-right}" y2="${y}" stroke="#f0ecf5" stroke-dasharray="3 4"/><text x="0" y="${y+4}">${n}%</text>`;}).join('')}<path d="${area}" fill="url(#area-fill)"/><path class="chart-line" d="${path}" fill="none" stroke="#a386d6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${points.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="${period==='week'?3:2}" fill="white" stroke="#a386d6" stroke-width="1.7" vector-effect="non-scaling-stroke"><title>${p.d.toLocaleDateString('ru-RU')}: ${percentage(p.d)}%</title></circle>`).join('')}${dates.map((d,i)=>period==='week'||i%5===0||i===dates.length-1?`<text x="${left+i*(w-left-right)/(dates.length-1)}" y="${h-5}" text-anchor="middle">${period==='week'?dayNames[i]:d.getDate()}</text>`:'').join('')}</svg>`;
 }
+let chartDimensions='';
+const chartResizeObserver=new ResizeObserver(([entry])=>{
+  const {width,height}=entry.contentRect;
+  if(!width||!height)return;
+  const dimensions=`${Math.round(width)}x${Math.round(height)}`;
+  if(dimensions===chartDimensions)return;
+  chartDimensions=dimensions;
+  requestAnimationFrame(renderChart);
+});
+chartResizeObserver.observe($('#progress-chart'));
 function renderActivityOptions(){const selected=$('#activity-habit').value;$('#activity-habit').innerHTML='<option value="all">Все привычки</option>'+state.habits.map(h=>`<option value="${escapeHTML(h.id)}">${escapeHTML(h.name)}</option>`).join('');if(state.habits.some(h=>h.id===selected))$('#activity-habit').value=selected;}
 function renderHeatmap(){
   const selected=$('#activity-habit').value,habits=selected==='all'?state.habits:state.habits.filter(h=>h.id===selected),start=shiftDate(today,-364),first=shiftDate(start,-((start.getDay()+6)%7)),columns=Math.ceil((Math.round((today-first)/86400000)+1)/7),months=[];let lastMonth=-1,total=0;
