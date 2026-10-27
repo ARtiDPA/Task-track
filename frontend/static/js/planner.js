@@ -25,7 +25,7 @@ function renderPlanner(){
   renderPlannerChart(result);renderPlans();
 }
 function renderPlannerChart(result){
-  const width=Math.max(270,Math.min(650,$('#planner-chart').clientWidth||500)),height=195,left=45,right=15,top=15,bottom=27;
+  const width=Math.max(200,Math.round($('#planner-chart').clientWidth||500)),height=250,left=64,right=22,top=18,bottom=32;
   const vals=[result.free,...result.series.map(p=>p.balance)],min=Math.min(0,...vals),max=Math.max(10000,...vals),span=max-min||1;
   const points=result.series.map((p,i)=>({...p,x:left+i*(width-left-right)/Math.max(1,result.days-1),y:top+(max-p.balance)/span*(height-top-bottom)}));
   const path=points.map((p,i)=>`${i?'L':'M'}${p.x},${p.y}`).join(' ');
