@@ -26,6 +26,10 @@ def initialize(db):
             start_ms INTEGER NOT NULL,end_ms INTEGER NOT NULL,
             FOREIGN KEY(user_id,session_id) REFERENCES focus_sessions(user_id,id) ON DELETE CASCADE);
         CREATE INDEX IF NOT EXISTS focus_segments_user ON focus_segments(user_id,start_ms);
+        CREATE TABLE IF NOT EXISTS focus_history_hidden (
+            user_id TEXT NOT NULL,session_id TEXT NOT NULL,
+            PRIMARY KEY(user_id,session_id),
+            FOREIGN KEY(user_id,session_id) REFERENCES focus_sessions(user_id,id) ON DELETE CASCADE);
     ''')
     # Switching tabs never pauses focus, including profiles with the old preference.
     db.execute('UPDATE focus_settings SET auto_pause=0 WHERE auto_pause<>0')
@@ -54,6 +58,9 @@ def reconcile(db,user_id,clock):
 
 def dispatch(db,user_id,parts,method,data):
     clock=now_ms();reconcile(db,user_id,clock)
+    if parts==['api','focus','history'] and method=='DELETE':
+        db.execute("INSERT OR IGNORE INTO focus_history_hidden(user_id,session_id) SELECT user_id,id FROM focus_sessions WHERE user_id=? AND status='completed'",(user_id,))
+        return True
     if parts==['api','focus','settings'] and method=='PUT':
         goal=data.get('goalMinutes');auto=data.get('autoPause',False)
         if type(goal) is not int or not 5<=goal<=720 or type(auto) is not bool:raise ValueError('Цель — от 5 до 720 минут. Проверь настройку паузы.')
@@ -73,7 +80,8 @@ def dispatch(db,user_id,parts,method,data):
     if not row:return False
     if len(parts)==4 and method=='DELETE':
         if row['status']!='completed':raise ValueError('Для активной сессии используй отмену.')
-        db.execute('DELETE FROM focus_sessions WHERE user_id=? AND id=?',(user_id,row['id']));return True
+        # Only hide completed sessions. Their segments and aggregate progress remain.
+        db.execute('INSERT OR IGNORE INTO focus_history_hidden(user_id,session_id) VALUES (?,?)',(user_id,row['id']));return True
     if method!='POST' or len(parts)!=5:raise ValueError('Неизвестное действие.')
     action=parts[4]
     if action not in ('pause','resume','distract','finish','cancel'):raise ValueError('Неизвестное действие.')
@@ -98,6 +106,7 @@ def state(db,user_id):
     if not db.in_transaction:db.execute('BEGIN IMMEDIATE')
     clock=now_ms();reconcile(db,user_id,clock)
     rows=db.execute('SELECT * FROM focus_sessions WHERE user_id=? ORDER BY started_ms DESC,id',(user_id,)).fetchall()
+    hidden={r['session_id'] for r in db.execute('SELECT session_id FROM focus_history_hidden WHERE user_id=?',(user_id,))}
     active=next((r for r in rows if r['status']!='completed'),None)
     intervals=[(r['start_ms'],r['end_ms']) for r in db.execute('SELECT start_ms,end_ms FROM focus_segments WHERE user_id=?',(user_id,))]
     if active and active['status']=='running':intervals.append((active['run_started_ms'],max(active['run_started_ms'],min(clock,active['run_started_ms']+active['target_ms']-active['elapsed_ms']))))
@@ -111,4 +120,4 @@ def state(db,user_id):
         elapsed=r['elapsed_ms']+(max(0,clock-r['run_started_ms']) if r['status']=='running' else 0)
         return dict(id=r['id'],title=r['title'],targetMs=r['target_ms'],elapsedMs=min(r['target_ms'],elapsed),status=r['status'],startedMs=r['started_ms'],finishedMs=r['finished_ms'],distractions=r['distractions'])
     settings=db.execute('SELECT * FROM focus_settings WHERE user_id=?',(user_id,)).fetchone()
-    return dict(serverNowMs=clock,active=packed(active) if active else None,history=[packed(r) for r in rows if r['status']=='completed'][:100],daily=[dict(day=d,milliseconds=ms) for d,ms in sorted(daily.items())],totalMs=sum(daily.values()),sessionCount=sum(r['status']=='completed' and r['elapsed_ms']>0 for r in rows),bestSessionMs=max((r['elapsed_ms'] for r in rows if r['status']=='completed'),default=0),distractions=sum(r['distractions'] for r in rows),settings=dict(goalMinutes=settings['goal_minutes'] if settings else 120,autoPause=False))
+    return dict(serverNowMs=clock,active=packed(active) if active else None,history=[packed(r) for r in rows if r['status']=='completed' and r['id'] not in hidden][:100],daily=[dict(day=d,milliseconds=ms) for d,ms in sorted(daily.items())],totalMs=sum(daily.values()),sessionCount=sum(r['status']=='completed' and r['elapsed_ms']>0 for r in rows),bestSessionMs=max((r['elapsed_ms'] for r in rows if r['status']=='completed'),default=0),distractions=sum(r['distractions'] for r in rows),settings=dict(goalMinutes=settings['goal_minutes'] if settings else 120,autoPause=False))

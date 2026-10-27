@@ -176,3 +176,40 @@ body{background:radial-gradient(ellipse at 85% 0,#a78bfa0a,transparent 48%),var(
 .finance-balance-card{background:linear-gradient(130deg,#a78bfa14,var(--surface));border-color:#a78bfa40}
 .achievement-symbol,.achievement-status{background:var(--tertiary-soft);color:var(--accent-tertiary)}
 .achievement-progress>i{background:linear-gradient(90deg,var(--accent-primary),var(--accent-tertiary))}
+
+/* Focus: a lit control room, with a brighter live state and quieter paused state. */
+.focus-stage{position:relative;isolation:isolate;overflow:hidden;background:radial-gradient(ellipse at 20% 15%,#a78bfa24,transparent 55%),radial-gradient(ellipse at 85% 65%,#65d6ff16,transparent 55%),#101018;border:1px solid #a78bfa55;box-shadow:0 0 45px #a78bfa0c,inset 0 1px #d6c6ff16}
+.focus-stage::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at 12% 18%,#f4bd6a 0 1px,transparent 3px),radial-gradient(circle at 84% 24%,#65d6ff 0 1.5px,transparent 4px),radial-gradient(circle at 78% 72%,#a78bfa 0 1px,transparent 3px),radial-gradient(circle at 16% 85%,#65d6ff 0 1px,transparent 3px);opacity:.65;animation:focus-lights 7s ease-in-out infinite}
+.focus-stage-orbit{border-color:#a78bfa26;box-shadow:0 0 65px #a78bfa0b}
+.focus-stage-kicker{color:var(--accent-secondary);text-shadow:0 0 16px #65d6ff44;letter-spacing:2.5px}
+.focus-timer-ring{position:relative;background:conic-gradient(from -90deg,var(--accent-secondary) 0%,var(--accent-primary) var(--focus-progress),#a78bfa25 var(--focus-progress));box-shadow:0 0 0 1px #a78bfa40,0 0 28px #a78bfa33,0 0 70px #65d6ff12;padding:5px}
+.focus-timer-ring::after{content:'';position:absolute;inset:15px;border-radius:50%;border:1px solid #65d6ff1e;pointer-events:none}
+.focus-timer-ring>div{background:radial-gradient(circle at 45% 30%,#29203c,#11121c 68%);border:5px solid #14131f;box-shadow:inset 0 0 40px #a78bfa10}
+.focus-timer-ring strong{color:#f5f0ff;text-shadow:0 0 24px #a78bfa55;font-variant-numeric:tabular-nums}
+.focus-timer-ring span{color:#b7b0ca}
+.focus-stage.running{border-color:#65d6ff77;box-shadow:0 0 45px #65d6ff0f,inset 0 1px #65d6ff22}
+.focus-stage.running .focus-timer-ring{box-shadow:0 0 0 1px #65d6ff66,0 0 38px #65d6ff33,0 0 90px #a78bfa24}
+.focus-stage.running .focus-timer-ring>div{animation:focus-core-glow 5s ease-in-out infinite}
+.focus-stage.running .focus-timer-ring strong{color:#e2f7ff;text-shadow:0 0 25px #65d6ff66}
+.focus-presets button.selected{background:#a78bfa26;border-color:#a78bfa99;color:#e5d9ff;box-shadow:0 0 16px #a78bfa1a}
+.focus-today-card{background:radial-gradient(ellipse at 100% 0,#65d6ff1b,transparent 65%),var(--surface);border-color:#65d6ff44}
+.focus-today-card>strong{color:var(--accent-secondary);text-shadow:0 0 28px #65d6ff30}
+.focus-goal-track{background:#65d6ff10}.focus-goal-track>i{box-shadow:0 0 14px #65d6ff55}
+.focus-mini-stats article:nth-child(1) strong,.focus-mini-stats article:nth-child(3) strong{color:var(--accent-tertiary);text-shadow:0 0 20px #f4bd6a24}
+.focus-mini-stats article:nth-child(2) strong{color:var(--accent-primary);text-shadow:0 0 20px #a78bfa33}
+.focus-bar-column i{background:linear-gradient(0deg,#8664dc,var(--accent-secondary));box-shadow:0 0 14px #65d6ff22}
+.focus-heat-cell.level-1{background:#a78bfa33}.focus-heat-cell.level-2{background:#a78bfa77}.focus-heat-cell.level-3{background:#65d6ff99}.focus-heat-cell.level-4{background:var(--accent-secondary);box-shadow:0 0 10px #65d6ff33}
+.focus-history-row>span{color:var(--accent-tertiary);background:var(--tertiary-soft)}
+#focus-clear-history{color:var(--accent-primary);padding:9px 12px;border:1px solid #a78bfa44;border-radius:8px;background:var(--primary-soft);white-space:nowrap}
+#focus-clear-history:disabled{opacity:.4;cursor:default}
+.focus-history-card .focus-chart-head{flex-wrap:wrap;gap:15px}
+.category-search{display:flex;flex-direction:column;gap:7px;min-width:0;width:100%}
+.category-search input[type=search]{width:100%;min-width:0;padding:10px 12px;font-size:12px;background:#0c0c13;border-color:#a78bfa40}
+.category-search input[type=search]:focus{border-color:var(--accent-primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.category-search select{width:100%;max-width:100%}
+.category-search-status{font-size:10px;line-height:1.6;color:var(--accent-secondary);margin:0}
+.finance-history-filters>.category-search{flex:1}.finance-history-filters{align-items:flex-start}
+@keyframes focus-lights{50%{opacity:.25;filter:drop-shadow(0 0 5px #65d6ff)}}
+@keyframes focus-core-glow{50%{box-shadow:inset 0 0 50px #65d6ff15,0 0 18px #a78bfa18}}
+@media(max-width:520px){.finance-history-filters{flex-wrap:wrap}.finance-history-filters>.category-search{flex-basis:100%}}
+@media(prefers-reduced-motion:reduce){.focus-stage::before,.focus-stage.running .focus-timer-ring>div{animation:none}}

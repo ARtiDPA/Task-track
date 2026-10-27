@@ -44,7 +44,32 @@ class FocusTests(ServerFixture):
         self.action('distract');self.assertEqual(self.request()[1]['focus']['distractions'],1)
         self.assertEqual(result['daily'],[dict(day='2026-10-18',milliseconds=20000),dict(day='2026-10-19',milliseconds=20000)])
         self.action('finish');self.request('/api/focus/sessions/focus','DELETE',{})
-        result=self.request()[1]['focus'];self.assertEqual(result['totalMs'],0);self.assertEqual(result['daily'],[])
+        result=self.request()[1]['focus'];self.assertEqual(result['totalMs'],40000);self.assertEqual(len(result['daily']),2)
+        self.assertEqual(result['history'],[]);self.assertEqual(result['sessionCount'],1)
+        self.assertEqual(result['bestSessionMs'],40000);self.assertEqual(result['distractions'],1)
+
+    def test_clear_history_preserves_progress_active_session_and_restart(self):
+        for identifier in ['first','second']:
+            self.start(identifier);self.clock+=20000;self.action('finish',identifier)
+        before=self.request()[1]['focus']
+        self.start('active');self.action('pause','active')
+        for _ in range(2):
+            self.assertEqual(self.request('/api/focus/history','DELETE',{})[0],200)
+        self.stop_server();self.start_server()
+        after=self.request()[1]['focus']
+        self.assertEqual(after['history'],[]);self.assertEqual(after['active']['id'],'active')
+        for key in ['totalMs','daily','sessionCount','bestSessionMs','distractions']:
+            self.assertEqual(before[key],after[key],key)
+        self.action('cancel','active');self.start('new');self.clock+=10000;self.action('finish','new')
+        self.assertEqual([s['id'] for s in self.request()[1]['focus']['history']],['new'])
+
+    def test_hidden_history_is_scoped_to_the_profile(self):
+        self.start();self.clock+=10000;self.action('finish')
+        self.request('/api/auth/register','POST',dict(email='other@example.com',name='Other',password='other-password'))
+        self.assertEqual(self.request('/api/focus/sessions/focus','DELETE',{})[0],404)
+        self.request('/api/focus/history','DELETE',{})
+        self.request('/api/auth/login','POST',dict(email='test@example.com',password='correct-password'))
+        self.assertEqual(len(self.request()[1]['focus']['history']),1)
 
     def test_validation_and_profile_isolation(self):
         self.assertEqual(self.start(minutes=True)[0],400);self.assertEqual(self.start(minutes=181)[0],400)
