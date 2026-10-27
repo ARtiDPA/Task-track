@@ -47,7 +47,7 @@ def initialize(db):
 
 def seed(db,user_id):
     db.execute('INSERT OR IGNORE INTO finance_settings(user_id) VALUES (?)',(user_id,))
-    db.executemany('INSERT OR IGNORE INTO finance_categories VALUES (?,?,?,?,?,?,0)',
+    db.executemany('INSERT OR IGNORE INTO finance_categories(user_id,id,name,kind,emoji,color,budget) VALUES (?,?,?,?,?,?,0)',
                    [(user_id,*category) for category in PRESETS])
 
 
@@ -85,7 +85,7 @@ def category(db,user_id,data):
         if (old['name'],old['kind'],old['emoji'],old['color'])!=(name.strip(),kind,emoji,color):
             raise ValueError('Категория уже существует с другими данными.')
         return
-    db.execute('INSERT INTO finance_categories VALUES (?,?,?,?,?,?,0)',(user_id,category_id,name.strip(),kind,emoji,color))
+    db.execute('INSERT INTO finance_categories(user_id,id,name,kind,emoji,color,budget) VALUES (?,?,?,?,?,?,0)',(user_id,category_id,name.strip(),kind,emoji,color))
 
 
 def budget(db,user_id,category_id,data):

@@ -67,7 +67,7 @@ def dispatch(db,user_id,parts,method,data):
             if old['title']!=title or old['target_ms']!=minutes*60000:raise ValueError('Эта сессия уже сохранена.')
             return True
         if db.execute("SELECT 1 FROM focus_sessions WHERE user_id=? AND status IN ('running','paused')",(user_id,)).fetchone():raise ValueError('Сначала заверши или отмени текущую сессию.')
-        db.execute('INSERT INTO focus_sessions VALUES (?,?,?,?,?,?,?,?,?,?)',(user_id,identifier,title,minutes*60000,'running',clock,clock,0,None,0));return True
+        db.execute('INSERT INTO focus_sessions(user_id,id,title,target_ms,status,started_ms,run_started_ms,elapsed_ms,finished_ms,distractions) VALUES (?,?,?,?,?,?,?,?,?,?)',(user_id,identifier,title,minutes*60000,'running',clock,clock,0,None,0));return True
     if len(parts) not in (4,5):raise ValueError('Неизвестное действие.')
     row=session(db,user_id,parts[3])
     if not row:return False

@@ -433,10 +433,11 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=5173)
     parser.add_argument('--database', default=os.environ.get('RITMO_DB', str(ROOT / 'data' / 'ritmo.sqlite3')))
     args = parser.parse_args()
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
+    server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.store = Store(args.database)
     server.auth = Auth(load_secret(Path(args.database).resolve().parent))
     server.auth.check()

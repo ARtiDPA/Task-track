@@ -1,4 +1,39 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: ritmo-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - ritmo-postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  app:
+    build: .
+    container_name: ritmo-app
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5173/api/auth/bootstrap', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
   redis:
     image: redis:7.4-alpine
     container_name: ritmo-redis
@@ -14,4 +49,5 @@ services:
       timeout: 3s
       retries: 10
 volumes:
+  ritmo-postgres-data:
   ritmo-redis-data:
