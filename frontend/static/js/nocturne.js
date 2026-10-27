@@ -19,6 +19,9 @@
   let height = 0;
   let drops = [];
   const glyphs = '01アカサタナハマヤラワリトモ:+<>/';
+  const theme = getComputedStyle(document.documentElement);
+  const rainColors = ['--accent-primary', '--accent-secondary', '--accent-tertiary']
+    .map(name => theme.getPropertyValue(name).trim());
   function resize() {
     if (!context) return;
     width = innerWidth;
@@ -34,11 +37,12 @@
     frame = requestAnimationFrame(draw);
     if (time - last < 65) return;
     last = time;
-    context.fillStyle = 'rgba(6,10,9,.075)';
+    context.fillStyle = 'rgba(9,9,15,.075)';
     context.fillRect(0, 0, width, height);
     context.font = '12px ui-monospace, monospace';
     drops.forEach((row, index) => {
-      context.fillStyle = Math.random() > .98 ? '#c3f9d2' : '#4b9864';
+      // Violet and blue carry the flow; sparse amber columns add warmth.
+      context.fillStyle = rainColors[index % 11 === 0 ? 2 : index % 2];
       context.fillText(glyphs[Math.floor(Math.random() * glyphs.length)], index * 26, row * 18);
       drops[index] = row * 18 > height && Math.random() > .98 ? -Math.random() * 30 : row + .38;
     });
