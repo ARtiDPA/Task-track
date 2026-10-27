@@ -1,7 +1,7 @@
 """Run: python -m pip install playwright; python tests/browser_smoke.py
 
 Creates an isolated temporary database and server; never modifies real user data.
-Uses installed Microsoft Edge; no browser download required on Windows.
+Install the test browser with: python -m playwright install chromium.
 """
 import json
 import tempfile

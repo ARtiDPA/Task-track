@@ -7,7 +7,7 @@ class AchievementTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.playwright=sync_playwright().start()
-        cls.browser=cls.playwright.chromium.launch(channel='msedge',headless=True)
+        cls.browser=cls.playwright.chromium.launch(headless=True)
         cls.page=cls.browser.new_page()
         cls.page.add_script_tag(path=str(Path(__file__).resolve().parents[1] / 'frontend' / 'static' / 'js' / 'achievements.js'))
 

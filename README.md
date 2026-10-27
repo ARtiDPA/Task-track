@@ -4,7 +4,15 @@
 
 ## Запуск
 
-Нужны Python 3.10+, Docker Desktop (для Redis) и Microsoft Edge для браузерных тестов. Из папки проекта:
+Полный запуск в Docker:
+
+```powershell
+docker compose up -d --build --wait
+```
+
+Открыть http://localhost:5173. Структура проекта и команды проверки описаны в [ARCHITECTURE.md](ARCHITECTURE.md), подробности восстановления данных — в [DOCKER.md](DOCKER.md).
+
+Для запуска сервера вне Docker нужны Python 3.10+ и Redis. Из папки проекта:
 
 ```powershell
 python -m pip install -r requirements.txt
@@ -129,7 +137,8 @@ python -m backend.app.main
 Проверка API, JWT/Redis, изоляции профилей, расчётов и пользовательских сценариев. Нужен запущенный Redis. Проверки используют временные SQLite-базы и отдельные случайные префиксы Redis; реальные данные и сессии не меняются:
 
 ```powershell
-python -m pip install playwright
+python -m pip install -r requirements-dev.txt
+python -m playwright install chromium
 python -m unittest discover -s tests -p "test_*.py" -v
 python tests/browser_smoke.py
 ```

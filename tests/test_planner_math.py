@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 class PlannerMathTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.playwright=sync_playwright().start();cls.browser=cls.playwright.chromium.launch(channel='msedge',headless=True)
+        cls.playwright=sync_playwright().start();cls.browser=cls.playwright.chromium.launch(headless=True)
         cls.page=cls.browser.new_page();cls.page.add_script_tag(path=str(Path(__file__).resolve().parents[1] / 'frontend' / 'static' / 'js' / 'schedule.js'));cls.page.add_script_tag(path=str(Path(__file__).resolve().parents[1] / 'frontend' / 'static' / 'js' / 'planner-math.js'))
 
     @classmethod

@@ -1,5 +1,6 @@
 """Theme controls, motion preferences and asset integrity in an isolated profile."""
 from playwright.sync_api import sync_playwright, expect
+from urllib.parse import urlsplit
 from test_server import ServerFixture
 
 
@@ -9,7 +10,8 @@ class ThemeTests(ServerFixture):
             browser = playwright.chromium.launch(headless=True)
             context = browser.new_context(viewport={'width': 390, 'height': 844})
             context.add_cookies([dict(name='ritmo_refresh', value=self.cookie.split('=', 1)[1],
-                                     url=self.url + '/api/auth', httpOnly=True, sameSite='Strict')])
+                                     domain=urlsplit(self.url).hostname, path='/api/auth',
+                                     httpOnly=True, sameSite='Strict')])
             page = context.new_page()
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
@@ -20,6 +22,7 @@ class ThemeTests(ServerFixture):
             toggle.click()
             expect(toggle).to_have_attribute('aria-pressed', 'false')
             page.reload()
+            expect(page.locator('.auth-screen')).not_to_be_visible()
             expect(toggle).to_have_attribute('aria-pressed', 'false')
             for view in ['dashboard', 'habits', 'analytics', 'finance', 'focus', 'tasks',
                          'calendar', 'wishlist', 'relationships', 'water', 'achievements']:

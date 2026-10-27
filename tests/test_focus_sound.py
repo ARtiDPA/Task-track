@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 class FocusSoundTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.playwright=sync_playwright().start();cls.browser=cls.playwright.chromium.launch(channel='msedge',headless=True)
+        cls.playwright=sync_playwright().start();cls.browser=cls.playwright.chromium.launch(headless=True)
 
     @classmethod
     def tearDownClass(cls):cls.browser.close();cls.playwright.stop()
