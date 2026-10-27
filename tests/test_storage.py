@@ -7,14 +7,14 @@ import uuid
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
 from test_server import QuietHandler, Store, ThreadingHTTPServer, Auth
-from server import today
+from backend.app.core.validation import today
 
 
 class StorageTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.playwright = sync_playwright().start()
-        cls.browser = cls.playwright.chromium.launch(channel='msedge', headless=True)
+        cls.browser = cls.playwright.chromium.launch(headless=True)
 
     @classmethod
     def tearDownClass(cls):

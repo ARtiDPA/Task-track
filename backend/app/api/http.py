@@ -1,179 +1,19 @@
-"""Ritmo local server and SQLite API. Run: python server.py"""
-import argparse
+"""HTTP endpoints, request validation, authentication and static responses."""
 import json
 import mimetypes
 import os
-import re
 import sqlite3
 import uuid
+import re
+from datetime import datetime, timezone
 from http.cookies import SimpleCookie, CookieError
-from contextlib import contextmanager
-from datetime import date, datetime, timedelta, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as BaseThreadingHTTPServer
-from pathlib import Path
+from http.server import BaseHTTPRequestHandler
 from urllib.parse import unquote, urlsplit
-
 import redis
-import hydration
-import finance
-import organizer
-import relationships
-import day_tasks
-import wishlist
-import focus
-from auth import Auth, AuthError, SESSION_SECONDS, email_value, password_value, hash_password, verify_password, load_secret
-
-ROOT = Path(__file__).resolve().parent
-MOSCOW = timezone(timedelta(hours=3))
-
-
-class ThreadingHTTPServer(BaseThreadingHTTPServer):
-    # Chromium requests the independent styles and scripts concurrently on reload.
-    request_queue_size = 128
-
-
-def today():
-    return datetime.now(MOSCOW).date().isoformat()
-
-
-def valid_date(value):
-    if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
-        raise ValueError('Неверная дата')
-    date.fromisoformat(value)
-    if value > today():
-        raise ValueError('Нельзя отмечать будущие дни')
-    return value
-
-
-def text_value(data, key, limit):
-    value = data.get(key)
-    if not isinstance(value, str) or not value.strip() or len(value.strip()) > limit:
-        raise ValueError(f'Неверное поле: {key}')
-    return value.strip()
-
-
-class Store:
-    def __init__(self, path):
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.connect() as db:
-            db.execute('PRAGMA journal_mode=WAL')
-            db.executescript('''
-                CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS habits (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    emoji TEXT NOT NULL,
-                    color TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    position INTEGER NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS habit_days (
-                    habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
-                    day TEXT NOT NULL,
-                    completed INTEGER NOT NULL CHECK(completed IN (0,1)),
-                    PRIMARY KEY(habit_id, day)
-                );
-                CREATE TABLE IF NOT EXISTS users (
-                    id TEXT PRIMARY KEY,
-                    email TEXT NOT NULL UNIQUE,
-                    name TEXT NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    initialized INTEGER NOT NULL DEFAULT 0
-                );
-                CREATE TABLE IF NOT EXISTS profile_habits (
-                    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    id TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    emoji TEXT NOT NULL,
-                    color TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    position INTEGER NOT NULL,
-                    PRIMARY KEY(user_id,id)
-                );
-                CREATE TABLE IF NOT EXISTS profile_days (
-                    user_id TEXT NOT NULL,
-                    habit_id TEXT NOT NULL,
-                    day TEXT NOT NULL,
-                    completed INTEGER NOT NULL CHECK(completed IN (0,1)),
-                    PRIMARY KEY(user_id,habit_id,day),
-                    FOREIGN KEY(user_id,habit_id) REFERENCES profile_habits(user_id,id) ON DELETE CASCADE
-                );
-                PRAGMA user_version=2;
-            ''')
-            hydration.initialize(db)
-            finance.initialize(db)
-            organizer.initialize(db)
-            relationships.initialize(db,today())
-            day_tasks.initialize(db)
-            wishlist.initialize(db)
-            focus.initialize(db)
-            db.execute('PRAGMA user_version=12')
-
-    @contextmanager
-    def connect(self):
-        db = sqlite3.connect(self.path, timeout=10)
-        db.row_factory = sqlite3.Row
-        db.execute('PRAGMA foreign_keys=ON')
-        try:
-            with db:
-                yield db
-        finally:
-            db.close()
-
-    def user(self, db, user_id):
-        row = db.execute('SELECT id,email,name,created_at,initialized FROM users WHERE id=?', (user_id,)).fetchone()
-        if not row:
-            raise AuthError()
-        return dict(id=row['id'], email=row['email'], name=row['name'], createdAt=row['created_at'])
-
-    def legacy_available(self, db):
-        return not db.execute('SELECT 1 FROM users LIMIT 1').fetchone() and bool(
-            db.execute("SELECT 1 FROM metadata WHERE key='initialized'").fetchone() or
-            db.execute('SELECT 1 FROM habits LIMIT 1').fetchone())
-
-    def state(self, db, user_id):
-        habits = []
-        logs = {}
-        for row in db.execute('SELECT habit_id, day FROM profile_days WHERE user_id=? AND completed=1 ORDER BY day', (user_id,)):
-            logs.setdefault(row['habit_id'], []).append(row['day'])
-        for row in db.execute('SELECT * FROM profile_habits WHERE user_id=? ORDER BY position, id', (user_id,)):
-            habits.append(dict(id=row['id'], name=row['name'], category=row['category'],
-                               emoji=row['emoji'], color=row['color'], createdAt=row['created_at'],
-                               logs=logs.get(row['id'], [])))
-        user = self.user(db, user_id)
-        initialized = bool(db.execute('SELECT initialized FROM users WHERE id=?', (user_id,)).fetchone()[0])
-        extras=organizer.state(db,user_id)
-        ledger=finance.state(db,user_id)
-        ledger['reservedKopecks']=extras['reservedKopecks']
-        ledger['freeBalanceKopecks']=ledger['balanceKopecks']-extras['reservedKopecks']
-        return {'user': user, 'habits': habits, 'initialized': initialized, 'water': hydration.state(db,user_id,today()), 'finance':ledger,'organizer':extras,'relationships':relationships.state(db,user_id),'tasks':day_tasks.state(db,user_id),'wishlist':wishlist.state(db,user_id),'focus':focus.state(db,user_id)}
-
-    def insert_habit(self, db, user_id, data, position, importing=False):
-        habit_id = text_value(data, 'id', 100)
-        if not re.fullmatch(r'[a-zA-Z0-9_-]+', habit_id):
-            raise ValueError('Неверный идентификатор привычки')
-        name = text_value(data, 'name', 60)
-        category = text_value(data, 'category', 40)
-        emoji = text_value(data, 'emoji', 32)
-        color = text_value(data, 'color', 7)
-        if not re.fullmatch(r'#[0-9a-fA-F]{6}', color):
-            raise ValueError('Неверный цвет')
-        logs = data.get('logs', []) if importing else []
-        if not isinstance(logs, list) or len(logs) > 20000:
-            raise ValueError('Неверная история привычки')
-        logs = sorted(set(valid_date(day) for day in logs))
-        # Old localStorage had no creation date: preserve the earliest recorded day.
-        created = valid_date(data.get('createdAt') or (logs[0] if logs else today())) if importing else today()
-        if any(day < created for day in logs):
-            raise ValueError('Отметка не может быть раньше создания привычки')
-        db.execute('INSERT INTO profile_habits VALUES (?,?,?,?,?,?,?,?)',
-                   (user_id, habit_id, name, category, emoji, color, created, position))
-        db.executemany('INSERT INTO profile_days VALUES (?,?,?,1)', [(user_id, habit_id, day) for day in logs])
-
+from backend.app.core.auth import AuthError, SESSION_SECONDS, email_value, password_value, hash_password, verify_password
+from backend.app.core.config import ROOT, STATIC
+from backend.app.core.validation import today, valid_date, text_value
+from backend.app.services import hydration, finance, organizer, relationships, day_tasks, wishlist, focus
 
 class Handler(BaseHTTPRequestHandler):
     server_version = 'Ritmo/1.0'
@@ -243,18 +83,21 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/state':
             user_id = self.current_user()
             with self.server.store.connect() as db:
-                db.execute('BEGIN')
+                # State reconciliation may finish a focus session and write rows.
+                # Acquire the write lock before reading to avoid WAL snapshot upgrades.
+                db.execute('BEGIN IMMEDIATE')
                 self.send_json(200, self.server.store.state(db, user_id))
             return
         if path == '/favicon.ico':
             self.send_response(204)
             self.end_headers()
             return
-        files = {'/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/metrics.js': 'metrics.js', '/storage.js': 'storage.js', '/emoji-catalog.js': 'emoji-catalog.js', '/styles.css': 'styles.css', '/account.css': 'account.css', '/account.js': 'account.js', '/achievements.js': 'achievements.js', '/achievements.css': 'achievements.css', '/water.js': 'water.js', '/water.css': 'water.css', '/finance.js': 'finance.js', '/finance.css': 'finance.css', '/finance-math.js': 'finance-math.js', '/schedule.js':'schedule.js', '/planner-math.js':'planner-math.js', '/money-organizer.js':'money-organizer.js', '/planner.js':'planner.js', '/calendar.js':'calendar.js', '/organizer.css':'organizer.css', '/relationships.js':'relationships.js', '/relationships.css':'relationships.css', '/day-tasks.js':'day-tasks.js', '/day-tasks.css':'day-tasks.css', '/wishlist.js':'wishlist.js', '/wishlist.css':'wishlist.css', '/focus-sound.js':'focus-sound.js', '/focus.js':'focus.js', '/focus.css':'focus.css', '/focus-math.js':'focus-math.js'}
+        files = {'/nocturne.css': 'nocturne.css', '/nocturne.js': 'nocturne.js', '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/metrics.js': 'metrics.js', '/storage.js': 'storage.js', '/emoji-catalog.js': 'emoji-catalog.js', '/styles.css': 'styles.css', '/account.css': 'account.css', '/account.js': 'account.js', '/achievements.js': 'achievements.js', '/achievements.css': 'achievements.css', '/water.js': 'water.js', '/water.css': 'water.css', '/finance.js': 'finance.js', '/finance.css': 'finance.css', '/finance-math.js': 'finance-math.js', '/schedule.js':'schedule.js', '/planner-math.js':'planner-math.js', '/money-organizer.js':'money-organizer.js', '/planner.js':'planner.js', '/calendar.js':'calendar.js', '/organizer.css':'organizer.css', '/relationships.js':'relationships.js', '/relationships.css':'relationships.css', '/day-tasks.js':'day-tasks.js', '/day-tasks.css':'day-tasks.css', '/wishlist.js':'wishlist.js', '/wishlist.css':'wishlist.css', '/focus-sound.js':'focus-sound.js', '/focus.js':'focus.js', '/focus.css':'focus.css', '/focus-math.js':'focus-math.js'}
         if path not in files:
             self.send_json(404, {'error': 'Страница не найдена'})
             return
-        file = ROOT / files[path]
+        name = files[path]
+        file = ROOT / 'frontend' / 'templates' / name if name.endswith('.html') else STATIC / ('js' if name.endswith('.js') else 'css') / name
         body = file.read_bytes()
         self.send_response(200)
         self.send_header('Content-Type', (mimetypes.guess_type(file)[0] or 'application/octet-stream') + '; charset=utf-8')
@@ -431,24 +274,3 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {'accessToken': token, 'user': user}, self.cookie_header(refresh))
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--host', default='127.0.0.1')
-    parser.add_argument('--port', type=int, default=5173)
-    parser.add_argument('--database', default=os.environ.get('RITMO_DB', str(ROOT / 'data' / 'ritmo.sqlite3')))
-    args = parser.parse_args()
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
-    server.store = Store(args.database)
-    server.auth = Auth(load_secret(Path(args.database).resolve().parent))
-    server.auth.check()
-    print(f'Ritmo: http://localhost:{server.server_port}', flush=True)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.server_close()
-
-
-if __name__ == '__main__':
-    main()

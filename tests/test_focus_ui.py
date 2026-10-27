@@ -21,16 +21,16 @@ class FocusUITests(unittest.TestCase):
         self.page.locator('[data-view=focus]').click();self.page.locator('#focus-settings-open').click()
         self.page.locator('#focus-goal').fill('60')
         self.page.locator('#focus-settings-dialog [type=submit]').click();expect(self.page.locator('#focus-settings-dialog')).not_to_be_visible()
-        with patch('focus.now_ms',return_value=base):
+        with patch('backend.app.services.focus.now_ms',return_value=base):
             self.page.locator('#focus-title').fill('Глубокая работа');self.page.locator('#focus-minutes').fill('25');self.page.locator('#focus-start').click()
             expect(self.page.locator('#focus-pause')).to_be_visible()
-        with patch('focus.now_ms',return_value=base+600000):
+        with patch('backend.app.services.focus.now_ms',return_value=base+600000):
             self.page.locator('#focus-pause').click();expect(self.page.locator('#focus-resume')).to_be_visible()
             expect(self.page.locator('#focus-clock')).to_have_text('15:00')
             self.page.reload();self.page.wait_for_function('ready');self.page.locator('[data-view=focus]').click()
             expect(self.page.locator('#focus-clock')).to_have_text('15:00');self.page.locator('#focus-resume').click()
             expect(self.page.locator('#focus-pause')).to_be_visible()
-        with patch('focus.now_ms',return_value=base+900000):
+        with patch('backend.app.services.focus.now_ms',return_value=base+900000):
             self.page.locator('#focus-finish').click();expect(self.page.locator('#focus-start')).to_be_visible()
             expect(self.page.locator('#focus-history')).to_contain_text('Глубокая работа')
             expect(self.page.locator('#focus-all-time')).to_have_text('15 мин')
@@ -68,10 +68,10 @@ class FocusUITests(unittest.TestCase):
         expect(self.page.locator('[data-focus-minutes].selected')).to_have_count(0)
         self.page.locator('#focus-sound-check').click();expect(self.page.locator('#focus-sound-status')).to_have_text('Звуковой сигнал готов')
         self.page.evaluate("window.soundCompletions=[];window.addEventListener('ritmo:focus-sound',e=>soundCompletions.push(e.detail.sessionId))")
-        with patch('focus.now_ms',return_value=base):
+        with patch('backend.app.services.focus.now_ms',return_value=base):
             self.page.locator('#focus-start').click();expect(self.page.locator('#focus-pause')).to_be_visible()
             self.assertEqual(self.page.evaluate('focusData().active.targetMs'),37*60000)
-        with patch('focus.now_ms',return_value=base+37*60000+1000):
+        with patch('backend.app.services.focus.now_ms',return_value=base+37*60000+1000):
             self.page.evaluate('refreshStorage()');expect(self.page.locator('#focus-start')).to_be_visible()
             self.assertEqual(self.page.evaluate('soundCompletions.length'),1)
             self.page.evaluate('renderFocus();tickFocus();renderFocus()')

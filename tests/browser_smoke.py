@@ -14,7 +14,7 @@ from test_server import QuietHandler, Store, ThreadingHTTPServer, Auth
 
 def run_checks(url):
     with sync_playwright() as p:
-        browser = p.chromium.launch(channel="msedge", headless=True)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(viewport={"width": 1440, "height": 1000}, timezone_id="Europe/Moscow")
         page = context.new_page()
         errors = []

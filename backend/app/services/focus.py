@@ -1,8 +1,8 @@
 """Server-clock focus timer. Only active intervals count; pauses do not."""
 import time
 from datetime import datetime, timedelta, timezone
-import finance
-from organizer import text
+from backend.app.services import finance
+from backend.app.services.organizer import text
 
 TZ=timezone(timedelta(hours=3))
 

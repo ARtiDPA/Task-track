@@ -24,7 +24,7 @@ class FocusSoundTests(unittest.TestCase):
           };
           window.addEventListener('ritmo:focus-sound',e=>window.completions.push(e.detail.sessionId));
         }''')
-        self.page.add_script_tag(path=str(Path(__file__).resolve().parents[1]/'focus-sound.js'))
+        self.page.add_script_tag(path=str(Path(__file__).resolve().parents[1] / 'frontend' / 'static' / 'js' / 'focus-sound.js'))
 
     def tearDown(self):self.page.close()
 

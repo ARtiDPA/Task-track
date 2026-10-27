@@ -3,7 +3,7 @@ import hashlib
 import re
 import calendar
 from datetime import date, datetime, timezone, time
-import finance
+from backend.app.services import finance
 
 
 def initialize(db):

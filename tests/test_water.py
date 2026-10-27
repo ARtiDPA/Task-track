@@ -1,8 +1,8 @@
 import unittest
 from datetime import date, timedelta
 from test_server import ServerFixture
-import hydration
-from server import today
+from backend.app.services import hydration
+from backend.app.core.validation import today
 
 
 class WaterTests(ServerFixture):

@@ -1,8 +1,8 @@
 """One shared task store for the day planner and calendar."""
 from datetime import datetime, timezone, time
 import re
-import finance
-from organizer import text, day_value
+from backend.app.services import finance
+from backend.app.services.organizer import text, day_value
 
 
 def initialize(db):

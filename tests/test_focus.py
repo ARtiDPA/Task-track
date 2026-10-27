@@ -6,7 +6,7 @@ from test_server import ServerFixture
 class FocusTests(ServerFixture):
     def setUp(self):
         super().setUp();self.clock=1780000000000
-        self.mock=patch('focus.now_ms',side_effect=lambda:self.clock);self.mock.start()
+        self.mock=patch('backend.app.services.focus.now_ms',side_effect=lambda:self.clock);self.mock.start()
 
     def tearDown(self):
         self.mock.stop();super().tearDown()

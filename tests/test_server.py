@@ -13,8 +13,11 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from server import Handler, Store, ThreadingHTTPServer, today
-from auth import Auth
+from backend.app.api.http import Handler
+from backend.app.persistence.store import Store
+from backend.app.main import ThreadingHTTPServer
+from backend.app.core.validation import today
+from backend.app.core.auth import Auth
 
 
 class QuietHandler(Handler):

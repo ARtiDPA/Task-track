@@ -79,7 +79,7 @@ class RelationshipTests(ServerFixture):
         self.assertEqual(self.request('/api/relationships/activity/moment','DELETE',{})[0],404)
 
     def test_actual_completion_date_is_separate_from_plan_and_undo_is_consistent(self):
-        from server import today
+        from backend.app.core.validation import today
         payload=self.entry('date');payload.update(day='2027-01-15')
         self.request('/api/relationships/entries','POST',payload)
         self.assertEqual(self.request()[1]['relationships']['activities'],[])

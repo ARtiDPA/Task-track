@@ -1,8 +1,8 @@
 """Profile-private personal wishes; wish prices never change the finance ledger."""
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
-import finance
-from organizer import text
+from backend.app.services import finance
+from backend.app.services.organizer import text
 
 
 def initialize(db):

@@ -134,7 +134,7 @@ class RelationshipUITests(unittest.TestCase):
 
     def test_last_moments_use_actual_dates_and_undo_updates_the_tracker(self):
         from datetime import date,timedelta
-        from server import today
+        from backend.app.core.validation import today
         yesterday=(date.fromisoformat(today())-timedelta(days=1)).isoformat()
         self.open_page()
         self.seed('planned','gift','Будущий подарок',day='2099-01-01')

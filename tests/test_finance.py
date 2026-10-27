@@ -1,6 +1,6 @@
 import unittest
 from test_server import ServerFixture
-from server import today
+from backend.app.core.validation import today
 
 
 class FinanceTests(ServerFixture):

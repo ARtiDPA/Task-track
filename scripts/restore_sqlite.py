@@ -3,7 +3,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from server import Store
+from backend.app.persistence.store import Store
 
 
 def quote(value):
